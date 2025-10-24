@@ -1,0 +1,10 @@
+.env
+node_modules
+client/build
+client/.env
+client/node_modules
+client/.vscode
+.DS_Store
+.vscode 
+.env.local
+server-cc-rds.pem
