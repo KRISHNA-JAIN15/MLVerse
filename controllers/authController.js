@@ -80,7 +80,7 @@ const authController = (userOps) => ({
 
   updateProfile: async (req, res) => {
     try {
-      const { name, email, phone } = req.body;
+      const { name, email, phone, api_key } = req.body;
       const userId = req.user.userId;
 
       // Validate input
@@ -102,10 +102,12 @@ const authController = (userOps) => ({
         name,
         email,
         phone,
+        api_key,
       });
 
       res.json({
         message: "Profile updated successfully",
+        success: true,
         user: {
           id: updatedUser.id,
           name: updatedUser.name,
@@ -114,6 +116,7 @@ const authController = (userOps) => ({
           credits: updatedUser.credits,
           email_verified: updatedUser.email_verified,
           created_at: updatedUser.created_at,
+          api_key: updatedUser.api_key, // Include the API key in the response
         },
       });
     } catch (error) {

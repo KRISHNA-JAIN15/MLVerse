@@ -64,8 +64,7 @@ const userOperations = (db) => ({
                     email = VALUES(email),
                     phone = VALUES(phone),
                     email_verified = VALUES(email_verified),
-                    last_login = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
+                    last_login = CURRENT_TIMESTAMP
             `;
 
       const values = [
@@ -179,16 +178,17 @@ const userOperations = (db) => ({
 
   // Update user profile
   updateUser: async (userData) => {
-    const { id, name, email, phone } = userData;
+    const { id, name, email, phone, api_key } = userData;
 
     return new Promise((resolve, reject) => {
       const query = `
         UPDATE users 
-        SET name = ?, email = ?, phone = ?, updated_at = CURRENT_TIMESTAMP
+        SET name = ?, email = ?, phone = ? ${api_key ? ', api_key = ?' : ''}
         WHERE id = ?
       `;
 
-      db.query(query, [name, email, phone, id], (err, result) => {
+      const params = api_key ? [name, email, phone, api_key, id] : [name, email, phone, id];
+      db.query(query, params, (err, result) => {
         if (err) {
           reject(err);
         } else {

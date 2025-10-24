@@ -1,0 +1,15 @@
+{
+    "name": "cc-lambda",
+    "version": "1.0.0",
+    "description": "API key management Lambda function",
+    "main": "handler.js",
+    "dependencies": {
+        "crypto": "^1.0.1",
+        "dotenv": "^17.2.3",
+        "mysql2": "^3.6.5"
+    },
+    "devDependencies": {
+        "serverless": "^3.38.0",
+        "serverless-dotenv-plugin": "^6.0.0"
+    }
+}

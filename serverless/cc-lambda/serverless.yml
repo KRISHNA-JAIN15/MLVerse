@@ -1,0 +1,81 @@
+org: iiits
+app: cc-aws
+service: cc-lambda
+
+plugins:
+  - serverless-dotenv-plugin
+
+custom:
+  dotenv:
+    path: .env
+    include:
+      - DB_HOST
+      - DB_USER
+      - DB_PASSWORD
+      - DB_DATABASE
+      - VPC_SECURITY_GROUP
+      - VPC_SUBNET_1
+      - VPC_SUBNET_2
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ap-south-1
+  environment:
+    DB_HOST: "test.c380g88kinos.ap-south-1.rds.amazonaws.com"
+    DB_USER: "admin"
+    DB_PASSWORD: "12345678"
+    DB_DATABASE: "ccrds"
+  vpc:
+    securityGroupIds:
+      - "sg-07ff9a6789e971da1"
+    subnetIds:
+      - "subnet-0694648b801ff65ee"
+      - "subnet-0cb9e3e217cf857a6"
+  apiGateway:
+    shouldStartNameWithService: true
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+            - ec2:DetachNetworkInterface
+            - rds-db:connect
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - apigateway:*
+          Resource: "*"
+
+functions:
+  regenerateApiKey:
+    handler: handler.regenerateApiKey
+    events:
+      - httpApi:
+          path: /regenerate-api-key
+          method: POST
+    environment:
+      NODE_OPTIONS: --enable-source-maps
+
+  corsHandler:
+    handler: handler.corsHandler
+    events:
+      - httpApi:
+          path: /regenerate-api-key
+          method: OPTIONS
+
+# custom:
+#   httpApi:
+#     cors:
+#       allowedOrigins: 
+#         - http://localhost:5173
+#       allowedHeaders:
+#         - Content-Type
+#         - Authorization
+#       allowedMethods:
+#         - POST
+#         - OPTIONS
+#       allowCredentials: true
