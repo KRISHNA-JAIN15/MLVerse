@@ -25,6 +25,11 @@ const authController = (userOps) => ({
           id: user.id,
           name: user.name,
           email: user.email,
+          phone: user.phone,
+          api_key: user.api_key,
+          credits: user.credits,
+          email_verified: user.email_verified,
+          created_at: user.created_at,
         },
       });
     } catch (error) {
@@ -60,6 +65,10 @@ const authController = (userOps) => ({
           id: user.id,
           name: user.name,
           email: user.email,
+          phone: user.phone,
+          api_key: user.api_key,
+          credits: user.credits,
+          created_at: user.created_at,
         },
       });
     } catch (error) {
@@ -76,6 +85,37 @@ const authController = (userOps) => ({
 
   logout: async (req, res) => {
     res.json({ message: "Logged out successfully" });
+  },
+
+  getCurrentUser: async (req, res) => {
+    try {
+      const userId = req.user.userId;
+
+      // Get user from database using the userOps
+      const user = await userOps.getUserById(userId);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Return user data
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          credits: user.credits,
+          email_verified: user.email_verified,
+          created_at: user.created_at,
+          api_key: user.api_key,
+        },
+      });
+    } catch (error) {
+      console.error("Get current user error:", error);
+      res.status(500).json({ error: "Failed to fetch user data" });
+    }
   },
 
   updateProfile: async (req, res) => {

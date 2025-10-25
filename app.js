@@ -135,6 +135,7 @@ const startApp = async () => {
 
 const dbRoutes = require("./routes/dbRoutes");
 const authRoutes = require("./routes/authRoutes");
+const modelRoutes = require("./routes/modelRoutes");
 const userOperations = require("./models/userOperations");
 
 const startServer = () => {
@@ -144,6 +145,7 @@ const startServer = () => {
   // Register routes with the DB connection
   app.use("/api", dbRoutes(db));
   app.use("/auth", authRoutes(userOps));
+  app.use("/api/models", modelRoutes);
 
   app.get("/", (req, res) => {
     res.json({

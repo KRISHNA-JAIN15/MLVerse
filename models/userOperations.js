@@ -19,7 +19,7 @@ const userOperations = (db) => ({
             reject(err);
           }
         } else {
-          resolve({ id: result.insertId, name, email });
+          resolve({ id: result.insertId, name, email, phone });
         }
       });
     });
@@ -122,6 +122,19 @@ const userOperations = (db) => ({
     });
   },
 
+  getUserById: async (userId) => {
+    return new Promise((resolve, reject) => {
+      const query = "SELECT * FROM users WHERE id = ?";
+      db.query(query, [userId], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results[0] || null);
+        }
+      });
+    });
+  },
+
   regenerateApiKey: async (cognitoId) => {
     return new Promise((resolve, reject) => {
       const query = `
@@ -183,11 +196,13 @@ const userOperations = (db) => ({
     return new Promise((resolve, reject) => {
       const query = `
         UPDATE users 
-        SET name = ?, email = ?, phone = ? ${api_key ? ', api_key = ?' : ''}
+        SET name = ?, email = ?, phone = ? ${api_key ? ", api_key = ?" : ""}
         WHERE id = ?
       `;
 
-      const params = api_key ? [name, email, phone, api_key, id] : [name, email, phone, id];
+      const params = api_key
+        ? [name, email, phone, api_key, id]
+        : [name, email, phone, id];
       db.query(query, params, (err, result) => {
         if (err) {
           reject(err);

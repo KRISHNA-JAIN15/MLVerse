@@ -11,6 +11,7 @@ module.exports = (userOps) => {
 
   // Protected routes
   router.post("/logout", authMiddleware.verifyToken, authController.logout);
+  router.get("/me", authMiddleware.verifyToken, authController.getCurrentUser);
   router.put(
     "/update-profile",
     authMiddleware.verifyToken,

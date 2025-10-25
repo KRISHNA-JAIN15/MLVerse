@@ -57,13 +57,36 @@ const AuthProvider = ({ children }) => {
     try {
       const response = await api.put("/auth/update-profile", updatedData);
       const updatedUser = response.data.user;
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-      setUser(updatedUser);
-      return { success: true };
+
+      // Merge the updated user data with existing user data to preserve all fields
+      const mergedUser = { ...user, ...updatedUser };
+
+      // Store the complete user data in localStorage
+      localStorage.setItem("user", JSON.stringify(mergedUser));
+      setUser(mergedUser);
+
+      return { success: true, user: mergedUser };
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.error || "Update failed",
+      };
+    }
+  };
+
+  const refreshUserData = async () => {
+    try {
+      const response = await api.get("/auth/me");
+      const userData = response.data.user;
+      const mergedUser = { ...user, ...userData };
+      localStorage.setItem("user", JSON.stringify(mergedUser));
+      setUser(mergedUser);
+      return { success: true, user: mergedUser };
+    } catch (error) {
+      console.error("Failed to refresh user data:", error);
+      return {
+        success: false,
+        error: error.response?.data?.error || "Failed to refresh user data",
       };
     }
   };
@@ -75,6 +98,7 @@ const AuthProvider = ({ children }) => {
     signup,
     logout,
     updateUserProfile,
+    refreshUserData,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
