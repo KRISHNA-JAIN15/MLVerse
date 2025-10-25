@@ -1,4 +1,9 @@
 const { dynamodb, TABLE_NAME } = require("../config/aws/dynamoConfig");
+const {
+  PutCommand,
+  QueryCommand,
+  GetCommand,
+} = require("@aws-sdk/lib-dynamodb");
 
 const modelOperations = {
   createModel: async (modelData) => {
@@ -8,7 +13,7 @@ const modelOperations = {
       TableName: TABLE_NAME,
       Item: {
         modelId,
-        userId: modelData.userId,
+        userId: String(modelData.userId), // Convert userId to string
         name: modelData.name,
         description: modelData.description,
         modelType: modelData.modelType,
@@ -22,7 +27,7 @@ const modelOperations = {
     };
 
     try {
-      await dynamodb.put(params).promise();
+      await dynamodb.send(new PutCommand(params));
       return { modelId, ...params.Item };
     } catch (error) {
       console.error("Error creating model metadata:", error);
@@ -35,12 +40,12 @@ const modelOperations = {
       TableName: TABLE_NAME,
       KeyConditionExpression: "userId = :userId",
       ExpressionAttributeValues: {
-        ":userId": userId,
+        ":userId": String(userId), // Convert userId to string
       },
     };
 
     try {
-      const result = await dynamodb.query(params).promise();
+      const result = await dynamodb.send(new QueryCommand(params));
       return result.Items;
     } catch (error) {
       console.error("Error getting models:", error);
@@ -58,7 +63,7 @@ const modelOperations = {
     };
 
     try {
-      const result = await dynamodb.get(params).promise();
+      const result = await dynamodb.send(new GetCommand(params));
       return result.Item;
     } catch (error) {
       console.error("Error getting model:", error);

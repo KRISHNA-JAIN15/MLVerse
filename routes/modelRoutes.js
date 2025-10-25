@@ -1,7 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
-const { s3, BUCKET_NAME } = require("../config/aws/s3Config");
+const { s3Client, BUCKET_NAME } = require("../config/aws/s3Config");
+const { Upload } = require("@aws-sdk/lib-storage");
+const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const modelOperations = require("../models/modelOperations");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -37,14 +39,18 @@ router.post(
       const s3Key = `models/${req.user.userId}/${Date.now()}-${
         file.originalname
       }`;
-      const uploadParams = {
-        Bucket: BUCKET_NAME,
-        Key: s3Key,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-      };
 
-      await s3.upload(uploadParams).promise();
+      const upload = new Upload({
+        client: s3Client,
+        params: {
+          Bucket: BUCKET_NAME,
+          Key: s3Key,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        },
+      });
+
+      await upload.done();
 
       // Store metadata in DynamoDB
       const modelData = {

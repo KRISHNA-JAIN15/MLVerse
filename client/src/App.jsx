@@ -10,6 +10,7 @@ import SignUp from "./components/Auth/SignUp";
 import Dashboard from "./components/Dashboard/Dashboard";
 import Navbar from "./components/Navbar";
 import Home from "./components/Home";
+import AddModel from "./components/AddModel";
 import AuthProvider from "./context/AuthContext";
 import { useAuth } from "./context/useAuth";
 
@@ -52,6 +53,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add-model"
+          element={
+            <ProtectedRoute>
+              <AddModel />
             </ProtectedRoute>
           }
         />

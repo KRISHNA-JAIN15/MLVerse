@@ -9,8 +9,11 @@ const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Check for stored user data on mount
     const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    const storedToken = localStorage.getItem("token");
+    if (storedUser && storedToken) {
+      const userData = JSON.parse(storedUser);
+      // Ensure token is always included in user data
+      setUser({ ...userData, token: storedToken });
     }
     setLoading(false);
   }, []);
@@ -19,9 +22,10 @@ const AuthProvider = ({ children }) => {
     try {
       const response = await api.post("/auth/login", credentials);
       const { token, user } = response.data;
+      const userWithToken = { ...user, token };
       localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
-      setUser(user);
+      localStorage.setItem("user", JSON.stringify(userWithToken));
+      setUser(userWithToken);
       return { success: true };
     } catch (error) {
       return {
@@ -35,9 +39,10 @@ const AuthProvider = ({ children }) => {
     try {
       const response = await api.post("/auth/signup", userData);
       const { token, user } = response.data;
+      const userWithToken = { ...user, token };
       localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
-      setUser(user);
+      localStorage.setItem("user", JSON.stringify(userWithToken));
+      setUser(userWithToken);
       return { success: true };
     } catch (error) {
       return {
