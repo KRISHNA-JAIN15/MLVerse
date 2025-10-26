@@ -11,11 +11,21 @@ import {
   CircularProgress,
   IconButton,
   InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import CreditCardIcon from "@mui/icons-material/CreditCard";
 import { useAuth } from "../../context/useAuth";
 import { API_CONFIG } from "../../config/api";
+import api from "../../utils/auth";
 
 const Dashboard = () => {
   const { user, updateUserProfile, refreshUserData } = useAuth();
@@ -32,6 +42,18 @@ const Dashboard = () => {
   });
   const [apiKeyLoading, setApiKeyLoading] = useState(false);
   const [apiKeyCopied, setApiKeyCopied] = useState(false);
+
+  // Credit purchase states
+  const [creditDialogOpen, setCreditDialogOpen] = useState(false);
+  const [selectedCredits, setSelectedCredits] = useState(10);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
+  const creditOptions = [
+    { credits: 10, price: 100 },
+    { credits: 50, price: 500 },
+    { credits: 100, price: 1000 },
+    { credits: 200, price: 2000 },
+  ];
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -84,45 +106,23 @@ const Dashboard = () => {
     setSuccess("");
 
     try {
-      const response = await fetch(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.REGENERATE_API_KEY}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ userId: user.id }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMessage =
-          data.error || `HTTP error! status: ${response.status}`;
-        console.error("Server response:", data);
-        throw new Error(errorMessage);
-      }
-
-      const profileUpdateResult = await updateUserProfile({
-        ...user,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        api_key: data.apiKey,
+      const response = await api.post(API_CONFIG.ENDPOINTS.REGENERATE_API_KEY, {
+        userId: user.id,
       });
 
-      if (profileUpdateResult.success) {
-        setSuccess("API key regenerated and saved successfully");
+      if (response.data.success) {
+        await refreshUserData(); // Refresh user data to get the new API key
+        setSuccess("API key regenerated successfully!");
       } else {
-        throw new Error(
-          profileUpdateResult.error ||
-            "Failed to save the new API key to profile"
-        );
+        throw new Error(response.data.error || "Failed to regenerate API key");
       }
     } catch (err) {
       console.error("Error regenerating API key:", err);
-      setError("Failed to regenerate API key");
+      setError(
+        err.response?.data?.error ||
+          err.message ||
+          "Failed to regenerate API key"
+      );
     } finally {
       setApiKeyLoading(false);
     }
@@ -156,6 +156,72 @@ const Dashboard = () => {
     }
   };
 
+  const handleCreditPurchase = async () => {
+    setPaymentLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      // Get Razorpay key
+      const keyResponse = await api.get(API_CONFIG.ENDPOINTS.RAZORPAY.GET_KEY);
+      const razorpayKey = keyResponse.data.key;
+
+      // Create order
+      const orderResponse = await api.post(
+        API_CONFIG.ENDPOINTS.RAZORPAY.PROCESS_PAYMENT,
+        {
+          credits: selectedCredits,
+        }
+      );
+
+      const { orderId, amount } = orderResponse.data;
+
+      // Initialize Razorpay
+      const options = {
+        key: razorpayKey,
+        amount: amount * 100, // Razorpay expects amount in paisa
+        currency: "INR",
+        name: "MLVerse",
+        description: `Purchase ${selectedCredits} Credits`,
+        order_id: orderId,
+        handler: async (response) => {
+          try {
+            // Verify payment
+            await api.post(API_CONFIG.ENDPOINTS.RAZORPAY.VERIFY_PAYMENT, {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              credits: selectedCredits,
+              userId: user.id,
+            });
+
+            setSuccess(`${selectedCredits} credits added successfully!`);
+            setCreditDialogOpen(false);
+            refreshUserData(); // Refresh user data to show updated credits
+          } catch (error) {
+            console.error("Payment verification failed:", error);
+            setError("Payment verification failed. Please contact support.");
+          }
+        },
+        prefill: {
+          name: user.name,
+          email: user.email,
+        },
+        theme: {
+          color: "#1976d2",
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (error) {
+      console.error("Payment initiation failed:", error);
+      setError("Failed to initiate payment. Please try again.");
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       {initialLoading ? (
@@ -168,24 +234,43 @@ const Dashboard = () => {
           <CircularProgress />
         </Box>
       ) : (
-        <Grid container spacing={3}>
+        <Grid container spacing={3} sx={{ width: "100%" }}>
           {/* Welcome Section */}
-          <Grid item xs={12}>
+          <Grid xs={12}>
             <Paper sx={{ p: 3, display: "flex", flexDirection: "column" }}>
-              <Typography variant="h4" gutterBottom>
-                Welcome, {user?.name}
-              </Typography>
-              <Typography color="textSecondary">
-                Email: {user?.email}
-              </Typography>
-              <Typography color="textSecondary">
-                Credits: {user?.credits || 0}
-              </Typography>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  mb: 2,
+                }}
+              >
+                <Box>
+                  <Typography variant="h4" gutterBottom>
+                    Welcome, {user?.name}
+                  </Typography>
+                  <Typography color="textSecondary">
+                    Email: {user?.email}
+                  </Typography>
+                  <Typography color="textSecondary">
+                    Credits: {user?.credits || 0}
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<CreditCardIcon />}
+                  onClick={() => setCreditDialogOpen(true)}
+                >
+                  Buy Credits
+                </Button>
+              </Box>
             </Paper>
           </Grid>
 
           {/* API Key Section */}
-          <Grid item xs={12} md={6}>
+          <Grid xs={12} sm={6}>
             <Paper
               sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2 }}
             >
@@ -229,7 +314,7 @@ const Dashboard = () => {
           </Grid>
 
           {/* Profile Section */}
-          <Grid item xs={12} md={6}>
+          <Grid xs={12} sm={6}>
             <Paper sx={{ p: 3, display: "flex", flexDirection: "column" }}>
               <Box
                 sx={{
@@ -324,6 +409,57 @@ const Dashboard = () => {
           </Grid>
         </Grid>
       )}
+
+      {/* Credit Purchase Dialog */}
+      <Dialog
+        open={creditDialogOpen}
+        onClose={() => setCreditDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Buy Credits</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" gutterBottom>
+            Select the number of credits you want to purchase:
+          </Typography>
+          <Typography variant="body2" color="textSecondary" gutterBottom>
+            Rate: 1 Credit = ₹10
+          </Typography>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>Select Credits</InputLabel>
+            <Select
+              value={selectedCredits}
+              label="Select Credits"
+              onChange={(e) => setSelectedCredits(e.target.value)}
+            >
+              {creditOptions.map((option) => (
+                <MenuItem key={option.credits} value={option.credits}>
+                  {option.credits} Credits - ₹{option.price}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Typography variant="h6" sx={{ mt: 2 }}>
+            Total: ₹
+            {creditOptions.find((opt) => opt.credits === selectedCredits)
+              ?.price || 0}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreditDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreditPurchase}
+            disabled={paymentLoading}
+          >
+            {paymentLoading ? (
+              <CircularProgress size={24} />
+            ) : (
+              "Proceed to Payment"
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

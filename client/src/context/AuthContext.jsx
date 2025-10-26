@@ -21,6 +21,9 @@ const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       const response = await api.post("/auth/login", credentials);
+      if (!response.data.success) {
+        throw new Error(response.data.error || "Login failed");
+      }
       const { token, user } = response.data;
       const userWithToken = { ...user, token };
       localStorage.setItem("token", token);
@@ -28,9 +31,10 @@ const AuthProvider = ({ children }) => {
       setUser(userWithToken);
       return { success: true };
     } catch (error) {
+      console.error("Login error:", error);
       return {
         success: false,
-        error: error.response?.data?.error || "Login failed",
+        error: error.response?.data?.error || error.message || "Login failed",
       };
     }
   };
@@ -56,6 +60,7 @@ const AuthProvider = ({ children }) => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setUser(null);
+    window.location.href = "/login"; // Force a full page refresh and redirect to login
   };
 
   const updateUserProfile = async (updatedData) => {
@@ -89,6 +94,10 @@ const AuthProvider = ({ children }) => {
       return { success: true, user: mergedUser };
     } catch (error) {
       console.error("Failed to refresh user data:", error);
+      // If we can't reach the server but have cached user data, continue with cached data
+      if (error.code === "ERR_NETWORK" && user) {
+        return { success: true, user, fromCache: true };
+      }
       return {
         success: false,
         error: error.response?.data?.error || "Failed to refresh user data",

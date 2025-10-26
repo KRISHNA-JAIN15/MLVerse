@@ -8,7 +8,10 @@ const authController = (userOps) => ({
       if (!email || !password || !name) {
         return res
           .status(400)
-          .json({ error: "Name, email and password are required" });
+          .json({ 
+            success: false,
+            message: "Name, email and password are required" 
+          });
       }
 
       const user = await userOps.createUser({ name, email, password });
@@ -34,10 +37,16 @@ const authController = (userOps) => ({
       });
     } catch (error) {
       if (error.message === "Email already exists") {
-        return res.status(409).json({ error: error.message });
+        return res.status(409).json({ 
+          success: false,
+          message: error.message 
+        });
       }
       console.error("Signup error:", error);
-      res.status(500).json({ error: "Error creating user" });
+      res.status(500).json({ 
+        success: false,
+        message: "Error creating user" 
+      });
     }
   },
 
@@ -48,7 +57,10 @@ const authController = (userOps) => ({
       if (!email || !password) {
         return res
           .status(400)
-          .json({ error: "Email and password are required" });
+          .json({ 
+            success: false,
+            message: "Email and password are required" 
+          });
       }
 
       const user = await userOps.verifyUser(email, password);
@@ -59,6 +71,7 @@ const authController = (userOps) => ({
       });
 
       res.json({
+        success: true,
         message: "Login successful",
         token,
         user: {
@@ -76,10 +89,24 @@ const authController = (userOps) => ({
         error.message === "User not found" ||
         error.message === "Invalid password"
       ) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        return res.status(401).json({ 
+          success: false,
+          message: "Invalid credentials" 
+        });
       }
+      
+      if (error.message === "Database error occurred during login") {
+        return res.status(503).json({
+          success: false,
+          message: "Service temporarily unavailable"
+        });
+      }
+      
       console.error("Login error:", error);
-      res.status(500).json({ error: "Error during login" });
+      res.status(500).json({ 
+        success: false,
+        message: "An unexpected error occurred" 
+      });
     }
   },
 
@@ -162,6 +189,30 @@ const authController = (userOps) => ({
     } catch (error) {
       console.error("Profile update error:", error);
       res.status(500).json({ error: "Failed to update profile" });
+    }
+  },
+
+  regenerateApiKey: async (req, res) => {
+    try {
+      const userId = req.user.userId;
+      const updatedUser = await userOps.regenerateApiKey(userId);
+
+      res.json({
+        success: true,
+        user: {
+          id: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+          credits: updatedUser.credits,
+          email_verified: updatedUser.email_verified,
+          created_at: updatedUser.created_at,
+          api_key: updatedUser.api_key,
+        },
+      });
+    } catch (error) {
+      console.error("API key regeneration error:", error);
+      res.status(500).json({ error: "Failed to regenerate API key" });
     }
   },
 });

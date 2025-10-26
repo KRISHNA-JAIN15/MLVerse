@@ -10,6 +10,11 @@ export const API_CONFIG = {
       LIST: "/api/models",
       GET: (id) => `/api/models/${id}`,
     },
-    REGENERATE_API_KEY: "/regenerate-api-key",
+    REGENERATE_API_KEY: "/auth/regenerate-api-key",
+    RAZORPAY: {
+      PROCESS_PAYMENT: "/payment/process",
+      GET_KEY: "/getKey",
+      VERIFY_PAYMENT: "/paymentVerification",
+    },
   },
 };

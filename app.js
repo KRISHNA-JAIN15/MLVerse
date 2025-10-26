@@ -133,34 +133,52 @@ const startApp = async () => {
   }
 };
 
+// Export db for use in other modules
+module.exports.db = db;
+
 const dbRoutes = require("./routes/dbRoutes");
 const authRoutes = require("./routes/authRoutes");
 const modelRoutes = require("./routes/modelRoutes");
 const userOperations = require("./models/userOperations");
 
 const startServer = () => {
-  // Initialize user operations with DB connection
-  const userOps = userOperations(db);
+  try {
+    // Initialize user operations with DB connection
+    const userOps = userOperations(db);
 
-  // Register routes with the DB connection
-  app.use("/api", dbRoutes(db));
-  app.use("/auth", authRoutes(userOps));
-  app.use("/api/models", modelRoutes);
+    // Register routes with the DB connection
+    app.use("/api", dbRoutes(db));
+    app.use("/auth", authRoutes(userOps));
+    app.use("/api/models", modelRoutes);
 
-  app.get("/", (req, res) => {
-    res.json({
-      message: "RDS Connection API",
-      dbEndpoints: [
-        "/api/tables - List all tables in database",
-        "/api/users/create-table - Create users table with proper schema",
-      ],
+    // Razorpay payment routes
+    const razorpayRoutes = require("./config/razorpay/productRoutes");
+    app.use("/", razorpayRoutes(userOps));
+
+    app.get("/", (req, res) => {
+      res.json({
+        message: "RDS Connection API",
+        dbEndpoints: [
+          "/api/tables - List all tables in database",
+          "/api/users/create-table - Create users table with proper schema",
+        ],
+      });
     });
-  });
 
-  port = process.env.PORT || 6003;
-  app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-  });
+    // Add error handling middleware
+    app.use((err, req, res, next) => {
+      console.error("Error:", err);
+      res.status(500).json({ error: err.message });
+    });
+
+    port = process.env.PORT || 6003;
+    app.listen(port, () => {
+      console.log(`Server is running on http://localhost:${port}`);
+      console.log("Database connection is active");
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error);
+  }
 };
 
 startApp();

@@ -7,7 +7,7 @@ const userOperations = (db) => ({
 
     return new Promise((resolve, reject) => {
       const query = `
-        INSERT INTO users (name, email, password, phone, email_verified, credits) 
+        INSERT INTO users (name, email, password, phone, email_verified, credits)
         VALUES (?, ?, ?, ?, false, 0)
       `;
 
@@ -27,22 +27,37 @@ const userOperations = (db) => ({
 
   verifyUser: async (email, password) => {
     return new Promise(async (resolve, reject) => {
+      if (!email || !password) {
+        reject(new Error("Email and password are required"));
+        return;
+      }
+
       const query = "SELECT * FROM users WHERE email = ?";
       db.query(query, [email], async (err, results) => {
         if (err) {
-          reject(err);
-        } else {
-          const user = results[0];
-          if (!user) {
-            reject(new Error("User not found"));
+          console.error('Database error during login:', err);
+          reject(new Error("Database error occurred during login"));
+          return;
+        }
+        
+        const user = results[0];
+        if (!user) {
+          reject(new Error("User not found"));
+          return;
+        }
+        
+        try {
+          const isValid = await bcrypt.compare(password, user.password);
+          if (isValid) {
+            // Remove sensitive data before sending
+            const { password: _, ...safeUser } = user;
+            resolve(safeUser);
           } else {
-            const isValid = await bcrypt.compare(password, user.password);
-            if (isValid) {
-              resolve(user);
-            } else {
-              reject(new Error("Invalid password"));
-            }
+            reject(new Error("Invalid password"));
           }
+        } catch (error) {
+          console.error('Password verification error:', error);
+          reject(new Error("Error verifying password"));
         }
       });
     });
@@ -135,25 +150,25 @@ const userOperations = (db) => ({
     });
   },
 
-  regenerateApiKey: async (cognitoId) => {
+  regenerateApiKey: async (userId) => {
     return new Promise((resolve, reject) => {
       const query = `
-                UPDATE users 
+                UPDATE users
                 SET api_key = SHA2(UUID(), 256)
-                WHERE cognito_id = ?
+                WHERE id = ?
             `;
-      db.query(query, [cognitoId], (err, result) => {
+      db.query(query, [userId], (err, result) => {
         if (err) {
           reject(err);
         } else {
           db.query(
-            "SELECT api_key FROM users WHERE cognito_id = ?",
-            [cognitoId],
+            "SELECT * FROM users WHERE id = ?",
+            [userId],
             (err, results) => {
               if (err) {
                 reject(err);
               } else {
-                resolve(results[0]?.api_key);
+                resolve(results[0]);
               }
             }
           );
@@ -162,20 +177,20 @@ const userOperations = (db) => ({
     });
   },
 
-  updateCredits: async (cognitoId, amount) => {
+  updateCredits: async (userId, amount) => {
     return new Promise((resolve, reject) => {
       const query = `
-                UPDATE users 
+                UPDATE users
                 SET credits = credits + ?
-                WHERE cognito_id = ?
+                WHERE id = ?
             `;
-      db.query(query, [amount, cognitoId], (err, result) => {
+      db.query(query, [amount, userId], (err, result) => {
         if (err) {
           reject(err);
         } else {
           db.query(
-            "SELECT credits FROM users WHERE cognito_id = ?",
-            [cognitoId],
+            "SELECT credits FROM users WHERE id = ?",
+            [userId],
             (err, results) => {
               if (err) {
                 reject(err);
@@ -195,7 +210,7 @@ const userOperations = (db) => ({
 
     return new Promise((resolve, reject) => {
       const query = `
-        UPDATE users 
+        UPDATE users
         SET name = ?, email = ?, phone = ? ${api_key ? ", api_key = ?" : ""}
         WHERE id = ?
       `;
