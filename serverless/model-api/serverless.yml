@@ -1,0 +1,61 @@
+org: iiits # Or your Serverless org
+app: cc-aws # Or your Serverless app
+service: model-api
+
+provider:
+  name: aws
+  runtime: nodejs20.x # Or your preferred runtime
+  region: ap-south-1 # Or your preferred region
+  environment:
+    DYNAMODB_TABLE: MLModels # From your dynamoConfig.js
+    S3_BUCKET: aws-cc-models # From your s3Config.js
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+          Resource: "arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:provider.environment.DYNAMODB_TABLE}"
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+          Resource: "arn:aws:s3:::${self:provider.environment.S3_BUCKET}/*"
+        # Add permissions for logs if needed
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: "arn:aws:logs:${aws:region}:${aws:accountId}:log-group:/aws/lambda/${self:service}-${sls:stage}-*:*"
+
+functions:
+  predictModel:
+    handler: handler.predict
+    events:
+      - httpApi:
+          path: /predict/{userId}/{modelId}
+          method: POST
+    # Optional: If your model loading needs more memory/time
+    # memorySize: 512
+    # timeout: 30
+
+# plugins:
+  # Optional: If you use .env files for local development secrets
+  # - serverless-dotenv-plugin
+
+# Optional: Define custom variables if needed
+# custom:
+#   dotenv:
+#     path: .env # if using serverless-dotenv-plugin
+
+package:
+  # Important: Include necessary model prediction libraries here
+  # E.g. exclude node_modules by default, but include specific ones
+  patterns:
+    - '!node_modules/**'
+    - 'node_modules/@aws-sdk/**'
+    - 'node_modules/tslib/**'
+    # Add paths to libraries needed for model loading/prediction, e.g.:
+    # - 'node_modules/onnxruntime-node/**' # Example for ONNX models
+    # - 'node_modules/some-python-bridge/**' # Example if using Python
+    # Or consider using Lambda Layers for large dependencies
