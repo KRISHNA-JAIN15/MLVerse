@@ -1,61 +1,95 @@
-org: iiits # Or your Serverless org
-app: cc-aws # Or your Serverless app
-service: model-api
+org: iiitsri
+app: cc-aws
+service: model-api # NEW SERVICE NAME
+
+plugins:
+  - serverless-dotenv-plugin
+
+custom:
+  dotenv:
+    path: .env
+    include:
+      - DB_HOST
+      - DB_USER
+      - DB_PASSWORD
+      - DB_DATABASE
+      - VPC_SECURITY_GROUP
+      - VPC_SUBNET_1
+      - VPC_SUBNET_2
 
 provider:
   name: aws
-  runtime: nodejs20.x # Or your preferred runtime
-  region: ap-south-1 # Or your preferred region
+  runtime: nodejs20.x
+  region: ap-south-1
   environment:
-    DYNAMODB_TABLE: MLModels # From your dynamoConfig.js
-    S3_BUCKET: aws-cc-models # From your s3Config.js
+    DB_HOST: "test.c380g88kinos.ap-south-1.rds.amazonaws.com"
+    DB_USER: "admin"
+    DB_PASSWORD: "12345678"
+    DB_DATABASE: "ccrds"
+    DYNAMO_TABLE_NAME: "MLModels" 
+    S3_BUCKET_NAME: "aws-cc-models" 
+  vpc:
+    securityGroupIds:
+      - "sg-07ff9a6789e971da1"
+    subnetIds:
+      - "subnet-0694648b801ff65ee"
+      - "subnet-0cb9e3e217cf857a6"
+  apiGateway:
+    shouldStartNameWithService: true
+    # cors:
+    #   allowedOrigins: 
+    #     - http://localhost:5173
+    #   allowedHeaders:
+    #     - Content-Type
+    #     - Authorization
+    #     - X-Api-Key
+    #   allowedMethods:
+    #     - POST
+    #     - OPTIONS
+    #   allowCredentials: true
   iam:
     role:
       statements:
+        # RDS Connection permissions (needed for MySQL auth check)
         - Effect: Allow
           Action:
-            - dynamodb:GetItem
-          Resource: "arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:provider.environment.DYNAMODB_TABLE}"
-        - Effect: Allow
-          Action:
-            - s3:GetObject
-          Resource: "arn:aws:s3:::${self:provider.environment.S3_BUCKET}/*"
-        # Add permissions for logs if needed
-        - Effect: Allow
-          Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+            - ec2:DetachNetworkInterface
+            - rds-db:connect
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
-          Resource: "arn:aws:logs:${aws:region}:${aws:accountId}:log-group:/aws/lambda/${self:service}-${sls:stage}-*:*"
+            - apigateway:*
+          Resource: "*"
+        # Permissions for DynamoDB (MLModels table)
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:Query
+          Resource: 
+            - "arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:provider.environment.DYNAMO_TABLE_NAME}"
+        # Permissions for S3 (to retrieve the actual model file)
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+          Resource: 
+            - "arn:aws:s3:::${self:provider.environment.S3_BUCKET_NAME}/*"
 
 functions:
   predictModel:
-    handler: handler.predict
+    handler: handler.predictModel
     events:
       - httpApi:
-          path: /predict/{userId}/{modelId}
+          path: /models/{modelId}/predict # Dynamic path for model prediction
           method: POST
-    # Optional: If your model loading needs more memory/time
-    # memorySize: 512
-    # timeout: 30
+    environment:
+      NODE_OPTIONS: --enable-source-maps
 
-# plugins:
-  # Optional: If you use .env files for local development secrets
-  # - serverless-dotenv-plugin
-
-# Optional: Define custom variables if needed
-# custom:
-#   dotenv:
-#     path: .env # if using serverless-dotenv-plugin
-
-package:
-  # Important: Include necessary model prediction libraries here
-  # E.g. exclude node_modules by default, but include specific ones
-  patterns:
-    - '!node_modules/**'
-    - 'node_modules/@aws-sdk/**'
-    - 'node_modules/tslib/**'
-    # Add paths to libraries needed for model loading/prediction, e.g.:
-    # - 'node_modules/onnxruntime-node/**' # Example for ONNX models
-    # - 'node_modules/some-python-bridge/**' # Example if using Python
-    # Or consider using Lambda Layers for large dependencies
+  corsHandler:
+    handler: handler.corsHandler
+    events:
+      - httpApi:
+          path: /models/{modelId}/predict
+          method: OPTIONS
