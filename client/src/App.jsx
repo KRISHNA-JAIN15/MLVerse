@@ -11,6 +11,8 @@ import Dashboard from "./components/Dashboard/Dashboard";
 import Navbar from "./components/Navbar";
 import Home from "./components/Home";
 import AddModel from "./components/AddModel";
+// IMPORT NEW COMPONENT
+import ModelList from "./components/ModelList";
 import AuthProvider from "./context/AuthContext";
 import { useAuth } from "./context/useAuth";
 
@@ -49,7 +51,7 @@ function AppContent() {
 
         {/* Protected routes */}
         <Route
-          path="/dashboard/*"
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <Dashboard />
@@ -61,6 +63,15 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <AddModel />
+            </ProtectedRoute>
+          }
+        />
+        {/* NEW ROUTE ADDED */}
+        <Route
+          path="/models"
+          element={
+            <ProtectedRoute>
+              <ModelList />
             </ProtectedRoute>
           }
         />

@@ -50,9 +50,15 @@ const Navbar = () => {
             Home
           </Button>
           {user && (
-            <Button color="inherit" onClick={() => navigate("/dashboard")}>
-              Dashboard
-            </Button>
+            <>
+              <Button color="inherit" onClick={() => navigate("/dashboard")}>
+                Dashboard
+              </Button>
+              {/* NEW NAVIGATION LINK */}
+              <Button color="inherit" onClick={() => navigate("/models")}>
+                My Models
+              </Button>
+            </>
           )}
         </Box>
 
