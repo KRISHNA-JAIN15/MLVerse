@@ -115,6 +115,79 @@ const parseBody = (event) => {
   }
 };
 
+// exports.listModels = async (event) => {
+//   console.log("Model list request started (Listing ALL Models).");
+//   try {
+//     // 1. Authentication Check
+//     const authResult = await authenticate(event);
+    
+//     // Block access if API Key is missing or invalid.
+//     // Allow access if 'Insufficient credits' is the error, as viewing the list is free.
+//     if (authResult.error && authResult.error !== "Insufficient credits") {
+//         return respond(401, { success: false, error: authResult.error });
+//     }
+    
+//     // 2. Scan DynamoDB for ALL models
+//     const scanParams = {
+//         TableName: DYNAMO_TABLE_NAME,
+//         // *** NO FilterExpression: The Scan fetches all items. ***
+//         ProjectionExpression: "modelId, #n, description, inputs, framework, outputType, costPerPrediction, userId", // Added userId to display who deployed the model
+//         ExpressionAttributeNames: {
+//             "#n": "name" // Using ExpressionAttributeNames for 'name' which is a reserved keyword
+//         }
+//     };
+
+//     // WARNING: A full table Scan is inefficient for large tables. For a real marketplace
+//     // with many models, consider creating a Global Secondary Index (GSI) or pagination.
+//     const scanResult = await dynamodb.send(new ScanCommand(scanParams)); 
+
+//     // 3. Return Result
+//     return respond(200, {
+//       success: true,
+//       models: scanResult.Items || [], // Returns the array of all model metadata
+//     });
+
+//   } catch (error) {
+//     console.error("FATAL List Models Error:", error);
+//     return respond(500, {
+//       success: false,
+//       error: "Internal server error. Failed to retrieve models list.",
+//       details: error.message,
+//     });
+//   }
+// };
+
+exports.listModels = async (event) => {
+  console.log("Model list request started (Public Marketplace).");
+  try {
+    
+    // 2. Scan DynamoDB for ALL models (NO userId filter)
+    const scanParams = {
+        TableName: DYNAMO_TABLE_NAME,
+        ProjectionExpression: "modelId, #n, description, inputs, framework, outputType, costPerPrediction", 
+        ExpressionAttributeNames: {
+            "#n": "name" 
+        }
+    };
+
+    const scanResult = await dynamodb.send(new ScanCommand(scanParams)); 
+
+    // 3. Return Result
+    return respond(200, {
+      success: true,
+      models: scanResult.Items || [], 
+    });
+
+  } catch (error) {
+    console.error("FATAL List Models Error:", error);
+    return respond(500, {
+      success: false,
+      error: "Internal server error. Failed to retrieve models list.",
+      details: error.message,
+    });
+  }
+};
+
 
 // --- NEW TEST FUNCTION: Test DynamoDB Connectivity ---
 

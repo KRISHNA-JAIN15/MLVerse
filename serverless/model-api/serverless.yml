@@ -97,6 +97,9 @@ functions:
       - httpApi: 
           path: /test/dynamo
           method: OPTIONS
+      - httpApi:
+          path: /models/list
+          method: OPTIONS
 
   listUsers:
     handler: handler.listUsers
@@ -110,4 +113,11 @@ functions:
     events:
       - httpApi:
           path: /test/dynamo
+          method: GET
+
+  listModels:
+    handler: handler.listModels 
+    events:
+      - httpApi:
+          path: /models/list 
           method: GET

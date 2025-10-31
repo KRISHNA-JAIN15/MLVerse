@@ -1,344 +1,592 @@
+// import { useState, useEffect } from "react";
+// import {
+//   Container,
+//   Grid,
+//   Typography,
+//   Paper,
+//   Box,
+//   Alert,
+//   CircularProgress,
+//   Button,
+//   Dialog,
+//   DialogTitle,
+//   DialogContent,
+//   DialogActions,
+//   Chip,
+//   Divider,
+//   IconButton,
+// } from "@mui/material";
+// import CodeIcon from "@mui/icons-material/Code";
+// import HttpIcon from "@mui/icons-material/Http";
+// import PaidIcon from "@mui/icons-material/Paid";
+// import FreeBreakfastIcon from "@mui/icons-material/FreeBreakfast";
+// import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+// import { API_CONFIG } from "../config/api";
+// import api from "../utils/auth";
+// import { useAuth } from "../context/useAuth";
+
+// // Utility function to format input schema into a request body example
+// const generateRequestBody = (inputs) => {
+//   if (!inputs || inputs.length === 0) {
+//     return '{\n  "data": "Requires raw data upload (no structured inputs defined)"\n}';
+//   }
+  
+//   const body = {};
+//   inputs.forEach(input => {
+//     // Provide illustrative mock values based on type
+//     switch (input.type?.toLowerCase()) {
+//       case 'numeric':
+//         body[input.name] = 10.5;
+//         break;
+//       case 'categorical':
+//         body[input.name] = "category_A";
+//         break;
+//       case 'text':
+//         body[input.name] = "Example input text";
+//         break;
+//       case 'array':
+//         body[input.name] = [0.1, 0.2, 0.3];
+//         break;
+//       default:
+//         body[input.name] = null;
+//     }
+//   });
+
+//   return JSON.stringify(body, null, 2);
+// };
+
+// // Utility function to generate the prediction endpoint URL
+// const generateEndpointUrl = (modelId) => {
+//   if (!API_CONFIG.AWS_API_ENDPOINT || API_CONFIG.AWS_API_ENDPOINT.includes("<API_GATEWAY_URL>")) {
+//     return "AWS_API_ENDPOINT not configured. Please check src/config/api.js";
+//   }
+//   return `${API_CONFIG.AWS_API_ENDPOINT}/models/${modelId}/predict`;
+// };
+
+// // --- Model Card Component ---
+// const ModelCard = ({ model }) => {
+//   const [modalOpen, setModalOpen] = useState(false);
+//   const [modalType, setModalType] = useState(null); // 'body' or 'endpoint'
+//   const [copied, setCopied] = useState(false);
+
+//   const costPerPrediction = model.costPerPrediction || 0;
+//   const costLabel = costPerPrediction > 0 ? `Paid: ${costPerPrediction} credits` : "Free";
+//   const costIcon = costPerPrediction > 0 ? <PaidIcon /> : <FreeBreakfastIcon />;
+
+//   const handleOpenModal = (type) => {
+//     setModalType(type);
+//     setModalOpen(true);
+//   };
+
+//   const handleCopy = (text) => {
+//     navigator.clipboard.writeText(text);
+//     setCopied(true);
+//     setTimeout(() => setCopied(false), 1500);
+//   };
+
+//   const modalContent =
+//     modalType === "body"
+//       ? {
+//           title: "API Request Body Structure",
+//           content: generateRequestBody(model.inputs),
+//         }
+//       : {
+//           title: "Prediction Endpoint URL",
+//           content: generateEndpointUrl(model.modelId),
+//         };
+
+//   return (
+//     <Paper elevation={3} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", gap: 1.5 }}>
+      
+//       {/* Header and Cost */}
+//       <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+//         <Typography variant="h6" component="h2" fontWeight="bold">
+//           {model.name}
+//         </Typography>
+//         <Chip
+//           icon={costIcon}
+//           label={costLabel}
+//           color={costPerPrediction > 0 ? "error" : "success"}
+//           size="small"
+//           sx={{ ml: 1, fontWeight: 'bold' }}
+//         />
+//       </Box>
+
+//       <Typography variant="body2" color="textSecondary" gutterBottom>
+//         **ID:** {model.modelId}
+//       </Typography>
+
+//       {/* Metadata */}
+//       <Typography variant="body2">{model.description}</Typography>
+//       <Divider sx={{ my: 1 }} />
+      
+//       <Box>
+//         <Typography variant="subtitle2" component="h3">
+//           Inputs ({model.inputs?.length || 0}):
+//         </Typography>
+//         <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+//           {model.inputs?.map((input, index) => (
+//             <Chip
+//               key={index}
+//               label={`${input.name} (${input.type})`}
+//               size="small"
+//               variant="outlined"
+//               color="primary"
+//             />
+//           ))}
+//         </Box>
+//       </Box>
+
+//       <Typography variant="subtitle2" sx={{ mt: 1 }}>
+//         **Framework:** {model.framework} | **Output:** {model.outputType}
+//       </Typography>
+
+//       {/* Buttons */}
+//       <Box sx={{ mt: 'auto', display: "flex", gap: 1, pt: 2 }}>
+//         <Button
+//           variant="contained"
+//           size="small"
+//           startIcon={<CodeIcon />}
+//           onClick={() => handleOpenModal("body")}
+//           sx={{ flexGrow: 1 }}
+//         >
+//           Req Body
+//         </Button>
+//         <Button
+//           variant="outlined"
+//           size="small"
+//           startIcon={<HttpIcon />}
+//           onClick={() => handleOpenModal("endpoint")}
+//           sx={{ flexGrow: 1 }}
+//         >
+//           Endpoint
+//         </Button>
+//       </Box>
+
+//       {/* Modal Dialog */}
+//       <Dialog open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="md" fullWidth>
+//         <DialogTitle>{modalContent.title}</DialogTitle>
+//         <DialogContent dividers>
+//           <pre
+//             style={{
+//               whiteSpace: "pre-wrap",
+//               wordWrap: "break-word",
+//               backgroundColor: "#f5f5f5",
+//               padding: "10px",
+//               borderRadius: "4px",
+//               position: "relative",
+//             }}
+//           >
+//             {modalContent.content}
+//           </pre>
+//           {copied && (
+//             <Chip
+//               label="Copied!"
+//               color="info"
+//               size="small"
+//               sx={{ position: 'absolute', top: 15, right: 15 }}
+//             />
+//           )}
+//         </DialogContent>
+//         <DialogActions>
+//           <IconButton onClick={() => handleCopy(modalContent.content)} title="Copy to Clipboard">
+//             <ContentCopyIcon />
+//           </IconButton>
+//           <Button onClick={() => setModalOpen(false)}>Close</Button>
+//         </DialogActions>
+//       </Dialog>
+//     </Paper>
+//   );
+// };
+
+// // --- Main ModelList Component ---
+// const ModelList = () => {
+//   const { user } = useAuth();
+//   const [models, setModels] = useState([]);
+//   const [loading, setLoading] = useState(true);
+//   const [error, setError] = useState("");
+
+//   useEffect(() => {
+//     const fetchModels = async () => {
+//       if (!user) {
+//         setLoading(false);
+//         return;
+//       }
+      
+//       setError("");
+//       setLoading(true);
+
+//       try {
+//         const response = `${API_CONFIG.AWS_API_ENDPOINT}/models/list`;
+        
+//         if (response.data.success === false) {
+//           throw new Error(response.data.error || "Failed to fetch models list");
+//         }
+
+//         setModels(response.data.models || []);
+//       } catch (err) {
+//         console.error("Error fetching models:", err);
+//         setError(
+//           err.response?.data?.error || err.message || "Failed to load models."
+//         );
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+
+//     fetchModels();
+//   }, [user]);
+
+//   if (loading) {
+//     return (
+//       <Container maxWidth="lg" sx={{ mt: 4 }}>
+//         <Box display="flex" justifyContent="center" alignItems="center" height="200px">
+//           <CircularProgress />
+//         </Box>
+//       </Container>
+//     );
+//   }
+
+//   if (error) {
+//     return (
+//       <Container maxWidth="lg" sx={{ mt: 4 }}>
+//         <Alert severity="error">{error}</Alert>
+//       </Container>
+//     );
+//   }
+
+//   return (
+//     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+//       <Typography variant="h4" component="h1" gutterBottom>
+//         Your Deployed Models ({models.length})
+//       </Typography>
+      
+//       <Alert severity="info" sx={{ mb: 3 }}>
+//         The Endpoint URL assumes a `/dev` stage deployment. Remember to send your API Key in the `X-Api-Key` header for authentication.
+//       </Alert>
+
+//       {models.length === 0 ? (
+//         <Alert severity="warning">You have no models deployed yet. Use the "Add Model" page to deploy one.</Alert>
+//       ) : (
+//         <Grid container spacing={3}>
+//           {models.map((model) => (
+//             <Grid item key={model.modelId} xs={12} sm={6} md={4}>
+//               <ModelCard model={model} />
+//             </Grid>
+//           ))}
+//         </Grid>
+//       )}
+//     </Container>
+//   );
+// };
+
+// export default ModelList;
+
+
 import { useState, useEffect } from "react";
 import {
   Container,
   Grid,
-  Paper,
   Typography,
-  Button,
+  Paper,
   Box,
   Alert,
   CircularProgress,
-  Card,
-  CardContent,
-  CardActions,
-  Chip,
+  Button,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
+  Chip,
+  Divider,
   IconButton,
-  Tooltip,
 } from "@mui/material";
-import ApiIcon from "@mui/icons-material/Api";
+import CodeIcon from "@mui/icons-material/Code";
+import HttpIcon from "@mui/icons-material/Http";
+import PaidIcon from "@mui/icons-material/Paid";
+import FreeBreakfastIcon from "@mui/icons-material/FreeBreakfast";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import { useAuth } from "../context/useAuth";
 import { API_CONFIG } from "../config/api";
+import api from "../utils/auth";
+import { useAuth } from "../context/useAuth";
 
+// Utility function to format input schema into a request body example
+const generateRequestBody = (inputs) => {
+  if (!inputs || inputs.length === 0) {
+    return '{\n  "data": "Requires raw data upload (no structured inputs defined)"\n}';
+  }
+  
+  const body = {};
+  inputs.forEach(input => {
+    // Provide illustrative mock values based on type
+    switch (input.type?.toLowerCase()) {
+      case 'numeric':
+        body[input.name] = 10.5;
+        break;
+      case 'categorical':
+        body[input.name] = "category_A";
+        break;
+      case 'text':
+        body[input.name] = "Example input text";
+        break;
+      case 'array':
+        body[input.name] = [0.1, 0.2, 0.3];
+        break;
+      default:
+        body[input.name] = null;
+    }
+  });
+
+  return JSON.stringify(body, null, 2);
+};
+
+// Utility function to generate the prediction endpoint URL
+const generateEndpointUrl = (modelId) => {
+  if (!API_CONFIG.AWS_API_ENDPOINT || API_CONFIG.AWS_API_ENDPOINT.includes("<API_GATEWAY_URL>")) {
+    return "AWS_API_ENDPOINT not configured. Please check src/config/api.js";
+  }
+  return `${API_CONFIG.AWS_API_ENDPOINT}/models/${modelId}/predict`;
+};
+
+// --- Model Card Component ---
+const ModelCard = ({ model }) => {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState(null); // 'body' or 'endpoint'
+  const [copied, setCopied] = useState(false);
+
+  const costPerPrediction = model.costPerPrediction || 0;
+  const costLabel = costPerPrediction > 0 ? `Paid: ${costPerPrediction} credits` : "Free";
+  const costIcon = costPerPrediction > 0 ? <PaidIcon /> : <FreeBreakfastIcon />;
+
+  const handleOpenModal = (type) => {
+    setModalType(type);
+    setModalOpen(true);
+  };
+
+  const handleCopy = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const modalContent =
+    modalType === "body"
+      ? {
+          title: "API Request Body Structure",
+          content: generateRequestBody(model.inputs),
+        }
+      : {
+          title: "Prediction Endpoint URL",
+          content: generateEndpointUrl(model.modelId),
+        };
+
+  return (
+    <Paper elevation={3} sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column", gap: 1.5 }}>
+      
+      {/* Header and Cost */}
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+        <Typography variant="h6" component="h2" fontWeight="bold">
+          {model.name}
+        </Typography>
+        <Chip
+          icon={costIcon}
+          label={costLabel}
+          color={costPerPrediction > 0 ? "error" : "success"}
+          size="small"
+          sx={{ ml: 1, fontWeight: 'bold' }}
+        />
+      </Box>
+
+      <Typography variant="body2" color="textSecondary" gutterBottom>
+        **ID:** {model.modelId}
+      </Typography>
+
+      {/* Metadata */}
+      <Typography variant="body2">{model.description}</Typography>
+      <Divider sx={{ my: 1 }} />
+      
+      <Box>
+        <Typography variant="subtitle2" component="h3">
+          Inputs ({model.inputs?.length || 0}):
+        </Typography>
+        <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {model.inputs?.map((input, index) => (
+            <Chip
+              key={index}
+              label={`${input.name} (${input.type})`}
+              size="small"
+              variant="outlined"
+              color="primary"
+            />
+          ))}
+        </Box>
+      </Box>
+
+      <Typography variant="subtitle2" sx={{ mt: 1 }}>
+        **Framework:** {model.framework} | **Output:** {model.outputType}
+      </Typography>
+
+      {/* Buttons */}
+      <Box sx={{ mt: 'auto', display: "flex", gap: 1, pt: 2 }}>
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<CodeIcon />}
+          onClick={() => handleOpenModal("body")}
+          sx={{ flexGrow: 1 }}
+        >
+          Req Body
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<HttpIcon />}
+          onClick={() => handleOpenModal("endpoint")}
+          sx={{ flexGrow: 1 }}
+        >
+          Endpoint
+        </Button>
+      </Box>
+
+      {/* Modal Dialog */}
+      <Dialog open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>{modalContent.title}</DialogTitle>
+        <DialogContent dividers>
+          <pre
+            style={{
+              whiteSpace: "pre-wrap",
+              wordWrap: "break-word",
+              backgroundColor: "#f5f5f5",
+              padding: "10px",
+              borderRadius: "4px",
+              position: "relative",
+            }}
+          >
+            {modalContent.content}
+          </pre>
+          {copied && (
+            <Chip
+              label="Copied!"
+              color="info"
+              size="small"
+              sx={{ position: 'absolute', top: 15, right: 15 }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <IconButton onClick={() => handleCopy(modalContent.content)} title="Copy to Clipboard">
+            <ContentCopyIcon />
+          </IconButton>
+          <Button onClick={() => setModalOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+    </Paper>
+  );
+};
+
+// --- Main ModelList Component ---
 const ModelList = () => {
   const { user } = useAuth();
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  // API Generation Dialog
-  const [apiDialogOpen, setApiDialogOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(null);
-  const [apiEndpoint, setApiEndpoint] = useState("");
-  const [apiGenerating, setApiGenerating] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetchModels();
-  }, []);
-
-  const fetchModels = async () => {
-    try {
+    const fetchModels = async () => {
+      // Retaining this check and dependency array as requested
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      
+      setError("");
       setLoading(true);
-      const response = await fetch(
-        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.MODELS.LIST}`,
-        {
+
+      try {
+        // FIX: Replaced the broken string assignment with a native fetch call
+        const url = `${API_CONFIG.AWS_API_ENDPOINT}/models/list`;
+        
+        // Execute the fetch request
+        const fetchResponse = await fetch(url, {
+          method: 'GET',
           headers: {
-            Authorization: `Bearer ${user.token}`,
+            // Pass the API key for authentication
+            'X-Api-Key': user?.api_key || '', 
+            'Content-Type': 'application/json',
           },
+        });
+        
+        // Handle non-200 HTTP status codes
+        if (!fetchResponse.ok) {
+            const errorData = await fetchResponse.json();
+            // Throw an error with the status/message from the backend
+            throw new Error(errorData.error || `HTTP Error! Status: ${fetchResponse.status}`);
         }
-      );
+        
+        // Parse the successful response body
+        const responseData = await fetchResponse.json(); 
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch models");
-      }
-
-      setModels(data.models || []);
-    } catch (err) {
-      console.error("Error fetching models:", err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGenerateApi = async (model) => {
-    setSelectedModel(model);
-    setApiGenerating(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      const response = await fetch(
-        `${API_CONFIG.BASE_URL}/api/models/${model.modelId}/generate-api`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${user.token}`,
-            "Content-Type": "application/json",
-          },
+        // Check the 'success' flag in the parsed data (was previously attempting to read .data.success)
+        if (responseData.success === false) {
+          throw new Error(responseData.error || "Failed to fetch models list");
         }
-      );
+        
+        // Access models property directly from the parsed JSON
+        setModels(responseData.models || []);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to generate API");
+      } catch (err) {
+        console.error("Error fetching models:", err);
+        // Use err.message for generic error display since fetch doesn't have err.response
+        setError(
+          err.message || "Failed to load models."
+        );
+      } finally {
+        setLoading(false);
       }
+    };
 
-      setApiEndpoint(data.apiEndpoint);
-      setApiDialogOpen(true);
-      setSuccess("API endpoint generated successfully!");
-    } catch (err) {
-      console.error("Error generating API:", err);
-      setError(err.message);
-    } finally {
-      setApiGenerating(false);
-    }
-  };
-
-  const handleCopyApiEndpoint = async () => {
-    try {
-      await navigator.clipboard.writeText(apiEndpoint);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy API endpoint:", err);
-      setError("Failed to copy API endpoint");
-    }
-  };
-
-  const handleCloseApiDialog = () => {
-    setApiDialogOpen(false);
-    setSelectedModel(null);
-    setApiEndpoint("");
-  };
+    fetchModels();
+  }, [user]); // Retaining the [user] dependency array as requested
 
   if (loading) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Box
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-          minHeight="200px"
-        >
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" height="200px">
           <CircularProgress />
         </Box>
       </Container>
     );
   }
 
+  if (error) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
+        <Alert severity="error">{error}</Alert>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Box
-        sx={{
-          mb: 3,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <Typography variant="h4">My Models</Typography>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={fetchModels}
-          disabled={loading}
-        >
-          Refresh
-        </Button>
-      </Box>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      {success && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          {success}
-        </Alert>
-      )}
+      <Typography variant="h4" component="h1" gutterBottom>
+        Your Deployed Models ({models.length})
+      </Typography>
+      
+      <Alert severity="info" sx={{ mb: 3 }}>
+        The Endpoint URL assumes a `/dev` stage deployment. Remember to send your API Key in the `X-Api-Key` header for authentication.
+      </Alert>
 
       {models.length === 0 ? (
-        <Paper sx={{ p: 4, textAlign: "center" }}>
-          <Typography variant="h6" color="textSecondary">
-            No models uploaded yet.
-          </Typography>
-          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-            Upload your first ML model to get started.
-          </Typography>
-        </Paper>
+        <Alert severity="warning">You have no models deployed yet. Use the "Add Model" page to deploy one.</Alert>
       ) : (
         <Grid container spacing={3}>
           {models.map((model) => (
-            <Grid item xs={12} md={6} lg={4} key={model.modelId}>
-              <Card
-                sx={{
-                  height: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Typography variant="h6" gutterBottom>
-                    {model.name}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    sx={{ mb: 2 }}
-                  >
-                    {model.description}
-                  </Typography>
-
-                  <Box sx={{ mb: 2 }}>
-                    <Chip
-                      label={model.modelType}
-                      size="small"
-                      color="primary"
-                      sx={{ mr: 1, mb: 1 }}
-                    />
-                    <Chip
-                      label={model.framework}
-                      size="small"
-                      color="secondary"
-                      sx={{ mr: 1, mb: 1 }}
-                    />
-                    <Chip
-                      label={model.fileFormat}
-                      size="small"
-                      variant="outlined"
-                      sx={{ mb: 1 }}
-                    />
-                  </Box>
-
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    <strong>Output:</strong> {model.outputType}
-                  </Typography>
-
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    <strong>Inputs:</strong>
-                  </Typography>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                    {model.inputs?.map((input, index) => (
-                      <Chip
-                        key={index}
-                        label={`${input.name} (${input.type})`}
-                        size="small"
-                        variant="outlined"
-                      />
-                    ))}
-                  </Box>
-
-                  <Typography
-                    variant="caption"
-                    color="textSecondary"
-                    sx={{ mt: 1, display: "block" }}
-                  >
-                    Uploaded: {new Date(model.createdAt).toLocaleDateString()}
-                  </Typography>
-                </CardContent>
-
-                <CardActions>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    startIcon={<ApiIcon />}
-                    onClick={() => handleGenerateApi(model)}
-                    disabled={apiGenerating}
-                    fullWidth
-                  >
-                    {apiGenerating ? (
-                      <CircularProgress size={16} />
-                    ) : (
-                      "Generate API"
-                    )}
-                  </Button>
-                </CardActions>
-              </Card>
+            <Grid item key={model.modelId} xs={12} sm={6} md={4}>
+              <ModelCard model={model} />
             </Grid>
           ))}
         </Grid>
       )}
-
-      {/* API Endpoint Dialog */}
-      <Dialog
-        open={apiDialogOpen}
-        onClose={handleCloseApiDialog}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>API Endpoint for {selectedModel?.name}</DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" gutterBottom>
-            Your model API is ready! Use the endpoint below to make predictions.
-          </Typography>
-
-          <TextField
-            fullWidth
-            label="API Endpoint"
-            value={apiEndpoint}
-            InputProps={{
-              readOnly: true,
-              endAdornment: (
-                <IconButton onClick={handleCopyApiEndpoint} edge="end">
-                  <Tooltip title={copied ? "Copied!" : "Copy"}>
-                    <ContentCopyIcon color={copied ? "success" : "action"} />
-                  </Tooltip>
-                </IconButton>
-              ),
-            }}
-            sx={{ mt: 2, mb: 2 }}
-          />
-
-          <Typography variant="h6" gutterBottom>
-            Usage Example:
-          </Typography>
-          <Box
-            sx={{
-              bgcolor: "grey.100",
-              p: 2,
-              borderRadius: 1,
-              fontFamily: "monospace",
-            }}
-          >
-            <Typography variant="body2">
-              curl -X POST "{apiEndpoint}" \<br />
-              &nbsp;&nbsp;-H "Content-Type: application/json" \<br />
-              &nbsp;&nbsp;-H "Authorization: Bearer YOUR_API_KEY" \<br />
-              &nbsp;&nbsp;-d '
-              {JSON.stringify(
-                selectedModel?.inputs?.reduce((acc, input) => {
-                  acc[input.name] = `example_${input.type}`;
-                  return acc;
-                }, {}),
-                null,
-                2
-              )}
-              '
-            </Typography>
-          </Box>
-
-          <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-            Replace YOUR_API_KEY with your actual API key from the dashboard.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseApiDialog}>Close</Button>
-        </DialogActions>
-      </Dialog>
     </Container>
   );
 };
