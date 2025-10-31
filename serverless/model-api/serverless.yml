@@ -1,11 +1,31 @@
 org: iiitsri
 app: cc-aws
-service: model-api # NEW SERVICE NAME
+service: model-api
 
 plugins:
   - serverless-dotenv-plugin
 
+# --- NEW PACKAGE BLOCK TO REDUCE SIZE ---
+package:
+  individually: true
+  patterns:
+    - '!node_modules/**'
+    - 'node_modules/mysql2/**'
+    - 'handler.js'
+    - '!package-lock.json'
+    - '!serverless.yml'
+
 custom:
+  esbuild:
+    bundle: true
+    minify: false
+    external:
+      - mysql2
+    packager: npm
+    packagerOptions:
+      scripts:
+        - npm install mysql2
+
   dotenv:
     path: .env
     include:
@@ -16,11 +36,13 @@ custom:
       - VPC_SECURITY_GROUP
       - VPC_SUBNET_1
       - VPC_SUBNET_2
+# ------------------------------------------
+
 
 provider:
   name: aws
   runtime: nodejs20.x
-  region: ap-south-1
+  region: ap-south-1 
   environment:
     DB_HOST: "test.c380g88kinos.ap-south-1.rds.amazonaws.com"
     DB_USER: "admin"
@@ -28,29 +50,19 @@ provider:
     DB_DATABASE: "ccrds"
     DYNAMO_TABLE_NAME: "MLModels" 
     S3_BUCKET_NAME: "aws-cc-models" 
+
   vpc:
     securityGroupIds:
       - "sg-07ff9a6789e971da1"
     subnetIds:
+      # Corrected subnet ID
       - "subnet-0694648b801ff65ee"
-      - "subnet-0cb9e3e217cf857a6"
+      - "subnet-0cb9e3e217cf857a6" 
   apiGateway:
     shouldStartNameWithService: true
-    # cors:
-    #   allowedOrigins: 
-    #     - http://localhost:5173
-    #   allowedHeaders:
-    #     - Content-Type
-    #     - Authorization
-    #     - X-Api-Key
-    #   allowedMethods:
-    #     - POST
-    #     - OPTIONS
-    #   allowCredentials: true
   iam:
     role:
       statements:
-        # RDS Connection permissions (needed for MySQL auth check)
         - Effect: Allow
           Action:
             - ec2:CreateNetworkInterface
@@ -79,10 +91,10 @@ provider:
 
 functions:
   predictModel:
-    handler: handler.predictModel
+    handler: handler.predictModel 
     events:
       - httpApi:
-          path: /models/{modelId}/predict # Dynamic path for model prediction
+          path: /models/{modelId}/predict 
           method: POST
     environment:
       NODE_OPTIONS: --enable-source-maps
@@ -93,3 +105,5 @@ functions:
       - httpApi:
           path: /models/{modelId}/predict
           method: OPTIONS
+
+    
