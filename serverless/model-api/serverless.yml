@@ -3,29 +3,16 @@ app: cc-aws
 service: model-api
 
 plugins:
+  # Essential plugin for loading DB credentials from .env
   - serverless-dotenv-plugin
 
-# --- NEW PACKAGE BLOCK TO REDUCE SIZE ---
+# Packaging configuration to keep the deployment artifact small
 package:
-  individually: true
-  patterns:
-    - '!node_modules/**'
-    - 'node_modules/mysql2/**'
-    - 'handler.js'
-    - '!package-lock.json'
-    - '!serverless.yml'
+  individually: true 
+  exclude:
+    - node_modules/onnxruntime-node/** # Exclude this large library
 
 custom:
-  esbuild:
-    bundle: true
-    minify: false
-    external:
-      - mysql2
-    packager: npm
-    packagerOptions:
-      scripts:
-        - npm install mysql2
-
   dotenv:
     path: .env
     include:
@@ -36,8 +23,6 @@ custom:
       - VPC_SECURITY_GROUP
       - VPC_SUBNET_1
       - VPC_SUBNET_2
-# ------------------------------------------
-
 
 provider:
   name: aws
@@ -50,12 +35,13 @@ provider:
     DB_DATABASE: "ccrds"
     DYNAMO_TABLE_NAME: "MLModels" 
     S3_BUCKET_NAME: "aws-cc-models" 
-
+    
   vpc:
     securityGroupIds:
+      # Lambda's Security Group
       - "sg-07ff9a6789e971da1"
     subnetIds:
-      # Corrected subnet ID
+      # Lambda's Subnets (Corrected IDs)
       - "subnet-0694648b801ff65ee"
       - "subnet-0cb9e3e217cf857a6" 
   apiGateway:
@@ -63,6 +49,7 @@ provider:
   iam:
     role:
       statements:
+        # IAM Permissions for VPC, RDS, and CloudWatch Logs
         - Effect: Allow
           Action:
             - ec2:CreateNetworkInterface
@@ -75,14 +62,15 @@ provider:
             - logs:PutLogEvents
             - apigateway:*
           Resource: "*"
-        # Permissions for DynamoDB (MLModels table)
+        # DynamoDB Permissions for Metadata Access
         - Effect: Allow
           Action:
             - dynamodb:GetItem
             - dynamodb:Query
+            - dynamodb:Scan # Scan added for testing purposes
           Resource: 
             - "arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:provider.environment.DYNAMO_TABLE_NAME}"
-        # Permissions for S3 (to retrieve the actual model file)
+        # S3 Permissions for future model loading
         - Effect: Allow
           Action:
             - s3:GetObject
@@ -96,8 +84,6 @@ functions:
       - httpApi:
           path: /models/{modelId}/predict 
           method: POST
-    environment:
-      NODE_OPTIONS: --enable-source-maps
 
   corsHandler:
     handler: handler.corsHandler
@@ -105,5 +91,23 @@ functions:
       - httpApi:
           path: /models/{modelId}/predict
           method: OPTIONS
+      - httpApi: 
+          path: /users
+          method: OPTIONS
+      - httpApi: 
+          path: /test/dynamo
+          method: OPTIONS
 
-    
+  listUsers:
+    handler: handler.listUsers
+    events:
+      - httpApi:
+          path: /users
+          method: GET
+
+  testDynamo:
+    handler: handler.testDynamo
+    events:
+      - httpApi:
+          path: /test/dynamo
+          method: GET

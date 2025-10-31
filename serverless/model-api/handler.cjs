@@ -1,6 +1,6 @@
 const mysql = require("mysql2/promise");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
+const { DynamoDBDocumentClient, GetCommand, ScanCommand } = require("@aws-sdk/lib-dynamodb"); // Added ScanCommand
 
 // --- Configuration from Environment Variables ---
 const DYNAMO_TABLE_NAME = process.env.DYNAMO_TABLE_NAME || "MLModels";
@@ -68,7 +68,8 @@ const getModelMetadata = async (modelId, userId) => {
   };
 
   try {
-    const result = await dynamodb.send(new GetCommand(params));
+    // This is the line that will likely timeout if DynamoDB VPC Endpoint is missing
+    const result = await dynamodb.send(new GetCommand(params)); 
     return result.Item;
   } catch (error) {
     console.error("Error getting model metadata from DynamoDB:", error);
@@ -82,14 +83,10 @@ const getModelMetadata = async (modelId, userId) => {
 const authenticate = async (event) => {
   const apiKey = event.headers['x-api-key'] || event.headers['X-Api-Key']; 
   if (!apiKey) {
-    // For this simple example, we don't require an API key for 'listUsers' 
-    // unless explicitly stated, but we keep it for 'predictModel'.
-    if (!event.path) return { error: "API Key Missing (send in X-Api-Key header)", user: null };
-    
-    // Skip authentication for the new test endpoint if no key is provided
-    if (event.path.endsWith("/users") && !apiKey) return { error: null, user: null }; 
-
-    return { error: "API Key Missing (send in X-Api-Key header)", user: null };
+    if (!event.path || !event.path.endsWith("/users")) {
+        return { error: "API Key Missing (send in X-Api-Key header)", user: null };
+    }
+    return { error: null, user: null }; 
   }
 
   const user = await getUserByApiKey(apiKey);
@@ -119,40 +116,35 @@ const parseBody = (event) => {
 };
 
 
-// --- NEW: Function to List All Users from RDS ---
+// --- NEW TEST FUNCTION: Test DynamoDB Connectivity ---
 
-exports.listUsers = async (event) => {
-    let connection;
-    try {
-        console.log("Listing all users from RDS...");
-        // This endpoint doesn't require authentication for simple testing purposes
-        
-        connection = await mysql.createConnection(dbConfig);
-        // WARNING: Do NOT select the password field!
-        const [rows] = await connection.execute(
-            "SELECT id, name, email, phone, api_key, credits, created_at FROM users"
-        );
+exports.testDynamo = async (event) => {
+  console.log("DynamoDB Test started.");
+  try {
+    const params = {
+      TableName: DYNAMO_TABLE_NAME,
+      Limit: 1 // Just fetch one item to confirm connectivity
+    };
+    
+    // Attempt a Scan operation to force a connection to the DynamoDB service endpoint
+    const result = await dynamodb.send(new ScanCommand(params));
 
-        return respond(200, {
-            success: true,
-            message: "Successfully retrieved all users from RDS.",
-            userCount: rows.length,
-            users: rows
-        });
+    return respond(200, {
+      success: true,
+      message: "DynamoDB connectivity test successful.",
+      itemCount: result.Items ? result.Items.length : 0,
+      testData: result.Items ? result.Items[0] : "No items found. Connectivity confirmed."
+    });
 
-    } catch (error) {
-        console.error("FATAL RDS Listing Error:", error);
-        return respond(500, {
-            success: false,
-            error: "Internal server error. Failed to connect or query RDS.",
-            details: error.message,
-        });
-    } finally {
-        if (connection) {
-            await connection.end();
-        }
-    }
-}
+  } catch (error) {
+    console.error("FATAL DynamoDB Test Error:", error);
+    return respond(500, {
+      success: false,
+      error: "DynamoDB Connectivity Failed (Check VPC Endpoint / IAM Permissions)",
+      details: error.message,
+    });
+  }
+};
 
 
 // --- Model Prediction Handler (Existing) ---
@@ -180,7 +172,7 @@ exports.predictModel = async (event) => {
         return respond(400, { success: false, error: "Invalid or empty JSON body provided. Expected prediction data as JSON object." });
     }
 
-    // 2. Fetch Model Metadata
+    // 2. Fetch Model Metadata (This is the point of failure if DynamoDB VPC Endpoint is missing)
     const modelMetadata = await getModelMetadata(modelId, userId);
     if (!modelMetadata) {
         return respond(404, { success: false, error: `Model with ID ${modelId} not found for this user, or Model ID/User ID pair incorrect.` });
@@ -203,7 +195,7 @@ exports.predictModel = async (event) => {
       return respond(400, { success: false, error: `Missing required input fields: ${missingInputs.join(', ')}` });
     }
 
-    // b. Simple type validation
+    // b. Simple type validation (rest of the logic...)
     for (const expectedInput of expectedInputs) {
         const value = inputData[expectedInput.name];
         
@@ -230,7 +222,6 @@ exports.predictModel = async (event) => {
     }
     
     // 4. Model Loading and Prediction (MOCKED)
-    // Mock the prediction result
     const mockPrediction = {
         result: modelMetadata.modelType === "Classification" ? "Predicted_Class_A" : 42.5,
         details: {
@@ -257,7 +248,7 @@ exports.predictModel = async (event) => {
     console.error("FATAL Prediction Error:", error);
     return respond(500, {
       success: false,
-      error: "Internal server error. Check CloudWatch logs for VPC/Database connection issues.",
+      error: "Internal server error. Check CloudWatch logs for DynamoDB/IAM issues.",
       details: error.message,
     });
   }
@@ -269,7 +260,7 @@ exports.corsHandler = async (event) => {
     return respond(200, { message: "CORS enabled" }, {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Api-Key",
-        "Access-Control-Allow-Methods": "OPTIONS,POST,GET", // Added GET
+        "Access-Control-Allow-Methods": "OPTIONS,POST,GET", 
         "Access-Control-Allow-Credentials": true,
     });
   };
