@@ -7,6 +7,10 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const modelOperations = require("../models/modelOperations");
 const authMiddleware = require("../middleware/authMiddleware");
 
+const PREDICTION_API_BASE_URL =
+  process.env.PREDICTION_API_BASE_URL ||
+  "https://iiits-cc-aws-model-api.execute-api.ap-south-1.amazonaws.com/dev";
+
 // Configure multer for memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -102,5 +106,58 @@ router.get("/:modelId", authMiddleware.verifyToken, async (req, res) => {
     res.status(500).json({ error: "Failed to get model" });
   }
 });
+
+// New route to generate API endpoint for a model
+router.post(
+  "/:modelId/generate-api",
+  authMiddleware.verifyToken,
+  async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const userId = req.user.userId;
+
+      // Verify the model belongs to the user
+      const model = await modelOperations.getModelById(modelId, userId);
+      if (!model) {
+        return res.status(404).json({ error: "Model not found" });
+      }
+
+      // Generate the API endpoint URL
+      const apiEndpoint = `${PREDICTION_API_BASE_URL}/predict/${userId}/${modelId}`;
+
+      // Return the API endpoint and model info
+      res.json({
+        message: "API endpoint generated successfully",
+        apiEndpoint,
+        model: {
+          modelId: model.modelId,
+          name: model.name,
+          description: model.description,
+          inputs: model.inputs,
+          outputType: model.outputType,
+          framework: model.framework,
+          fileFormat: model.fileFormat,
+        },
+        usage: {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${req.user.token || "YOUR_API_KEY"}`,
+          },
+          body: {
+            // Example based on model's input schema
+            ...model.inputs.reduce((acc, input) => {
+              acc[input.name] = `example_${input.type}`;
+              return acc;
+            }, {}),
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error generating API endpoint:", error);
+      res.status(500).json({ error: "Failed to generate API endpoint" });
+    }
+  }
+);
 
 module.exports = router;

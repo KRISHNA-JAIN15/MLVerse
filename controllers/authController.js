@@ -6,12 +6,10 @@ const authController = (userOps) => ({
       const { name, email, password } = req.body;
 
       if (!email || !password || !name) {
-        return res
-          .status(400)
-          .json({ 
-            success: false,
-            message: "Name, email and password are required" 
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Name, email and password are required",
+        });
       }
 
       const user = await userOps.createUser({ name, email, password });
@@ -37,15 +35,15 @@ const authController = (userOps) => ({
       });
     } catch (error) {
       if (error.message === "Email already exists") {
-        return res.status(409).json({ 
+        return res.status(409).json({
           success: false,
-          message: error.message 
+          message: error.message,
         });
       }
       console.error("Signup error:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        message: "Error creating user" 
+        message: "Error creating user",
       });
     }
   },
@@ -55,12 +53,10 @@ const authController = (userOps) => ({
       const { email, password } = req.body;
 
       if (!email || !password) {
-        return res
-          .status(400)
-          .json({ 
-            success: false,
-            message: "Email and password are required" 
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Email and password are required",
+        });
       }
 
       const user = await userOps.verifyUser(email, password);
@@ -89,23 +85,23 @@ const authController = (userOps) => ({
         error.message === "User not found" ||
         error.message === "Invalid password"
       ) {
-        return res.status(401).json({ 
+        return res.status(401).json({
           success: false,
-          message: "Invalid credentials" 
+          message: "Invalid credentials",
         });
       }
-      
+
       if (error.message === "Database error occurred during login") {
         return res.status(503).json({
           success: false,
-          message: "Service temporarily unavailable"
+          message: "Service temporarily unavailable",
         });
       }
-      
+
       console.error("Login error:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        message: "An unexpected error occurred" 
+        message: "An unexpected error occurred",
       });
     }
   },
