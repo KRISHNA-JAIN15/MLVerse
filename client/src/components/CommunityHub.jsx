@@ -267,8 +267,8 @@ const CommunityHub = () => {
       setLoading(true);
 
       try {
-        // Fetch all models from the marketplace (AWS API)
-        const url = `${API_CONFIG.AWS_API_ENDPOINT}/models/list`;
+        // Fetch all models from the marketplace (Main Backend)
+        const url = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.MODELS.MARKETPLACE}`;
 
         const fetchResponse = await fetch(url, {
           method: "GET",

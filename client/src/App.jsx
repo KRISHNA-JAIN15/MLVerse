@@ -11,8 +11,8 @@ import Dashboard from "./components/Dashboard/Dashboard";
 import Navbar from "./components/Navbar";
 import Home from "./components/Home";
 import AddModel from "./components/AddModel";
-// IMPORT NEW COMPONENT
 import ModelList from "./components/ModelList";
+import CommunityHub from "./components/CommunityHub";
 import AuthProvider from "./context/AuthContext";
 import { useAuth } from "./context/useAuth";
 
@@ -48,6 +48,7 @@ function AppContent() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/community" element={<CommunityHub />} />
 
         {/* Protected routes */}
         <Route
@@ -66,7 +67,6 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
-        {/* NEW ROUTE ADDED */}
         <Route
           path="/models"
           element={

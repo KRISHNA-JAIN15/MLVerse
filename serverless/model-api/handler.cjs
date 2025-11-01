@@ -203,21 +203,22 @@ const parseBody = (event) => {
 exports.listModels = async (event) => {
   console.log("Model list request started (Public Marketplace).");
   try {
-    // 2. Scan DynamoDB for ALL models (NO userId filter)
+    // Scan DynamoDB for ALL models (NO userId filter) - Public Marketplace
     const scanParams = {
       TableName: DYNAMO_TABLE_NAME,
       ProjectionExpression:
-        "modelId, #n, description, inputs, framework, outputType, pricingType, creditsPerCall, createdAt",
+        "modelId, #n, description, inputs, framework, outputType, pricingType, creditsPerCall, createdAt, userId",
       ExpressionAttributeNames: {
         "#n": "name",
       },
     };
 
-    const scanResult = await dynamodb.send(new ScanCommand(scanParams)); // 3. Return Result
+    const scanResult = await dynamodb.send(new ScanCommand(scanParams));
 
     return respond(200, {
       success: true,
       models: scanResult.Items || [],
+      message: "Public marketplace - all models",
     });
   } catch (error) {
     console.error("FATAL List Models Error:", error);
@@ -225,7 +226,53 @@ exports.listModels = async (event) => {
       success: false,
       error: "Internal server error. Failed to retrieve models list.",
       details: error.message,
-      S,
+    });
+  }
+};
+
+exports.listMyModels = async (event) => {
+  console.log("My Models request started (User's uploaded models).");
+  try {
+    // 1. Authentication required for user's models
+    const authResult = await authenticate(event);
+    if (authResult.error) {
+      return respond(401, {
+        success: false,
+        error: authResult.error,
+      });
+    }
+
+    const user = authResult.user;
+    const userId = user.id.toString();
+
+    // 2. Query DynamoDB for models uploaded by this specific user
+    const queryParams = {
+      TableName: DYNAMO_TABLE_NAME,
+      KeyConditionExpression: "userId = :uid",
+      ExpressionAttributeValues: {
+        ":uid": userId,
+      },
+      ProjectionExpression:
+        "modelId, #n, description, inputs, framework, outputType, pricingType, creditsPerCall, createdAt, userId",
+      ExpressionAttributeNames: {
+        "#n": "name",
+      },
+    };
+
+    const queryResult = await dynamodb.send(new QueryCommand(queryParams));
+
+    return respond(200, {
+      success: true,
+      models: queryResult.Items || [],
+      message: `Models uploaded by user ${userId}`,
+      count: queryResult.Count || 0,
+    });
+  } catch (error) {
+    console.error("FATAL List My Models Error:", error);
+    return respond(500, {
+      success: false,
+      error: "Internal server error. Failed to retrieve user's models.",
+      details: error.message,
     });
   }
 };

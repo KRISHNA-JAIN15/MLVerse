@@ -111,6 +111,26 @@ const modelOperations = {
       }
     }
   },
+
+  // Get all models for marketplace (public access)
+  getAllModels: async () => {
+    const params = {
+      TableName: TABLE_NAME,
+      ProjectionExpression:
+        "modelId, #n, description, inputs, framework, outputType, pricingType, creditsPerCall, createdAt, userId",
+      ExpressionAttributeNames: {
+        "#n": "name",
+      },
+    };
+
+    try {
+      const result = await dynamodb.send(new ScanCommand(params));
+      return result.Items || [];
+    } catch (error) {
+      console.error("Error getting all models:", error);
+      throw error;
+    }
+  },
 };
 
 module.exports = modelOperations;

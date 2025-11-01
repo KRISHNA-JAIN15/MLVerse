@@ -102,6 +102,17 @@ router.get("/list", authMiddleware.verifyToken, async (req, res) => {
   }
 });
 
+// New route for marketplace - shows all public models
+router.get("/marketplace", async (req, res) => {
+  try {
+    const models = await modelOperations.getAllModels();
+    res.json({ models });
+  } catch (error) {
+    console.error("Error getting marketplace models:", error);
+    res.status(500).json({ error: "Failed to get marketplace models" });
+  }
+});
+
 router.get("/:modelId", authMiddleware.verifyToken, async (req, res) => {
   try {
     const model = await modelOperations.getModelById(

@@ -49,14 +49,19 @@ const Navbar = () => {
           <Button color="inherit" onClick={() => navigate("/")}>
             Home
           </Button>
+          <Button color="inherit" onClick={() => navigate("/community")}>
+            Marketplace
+          </Button>
           {user && (
             <>
               <Button color="inherit" onClick={() => navigate("/dashboard")}>
                 Dashboard
               </Button>
-              {/* NEW NAVIGATION LINK */}
               <Button color="inherit" onClick={() => navigate("/models")}>
                 My Models
+              </Button>
+              <Button color="inherit" onClick={() => navigate("/add-model")}>
+                Add Model
               </Button>
             </>
           )}

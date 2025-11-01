@@ -92,21 +92,14 @@ functions:
           path: /models/{modelId}/predict
           method: OPTIONS
       - httpApi: 
-          path: /users
-          method: OPTIONS
-      - httpApi: 
           path: /test/dynamo
           method: OPTIONS
       - httpApi:
           path: /models/list
           method: OPTIONS
-
-  listUsers:
-    handler: handler.listUsers
-    events:
       - httpApi:
-          path: /users
-          method: GET
+          path: /models/my-models
+          method: OPTIONS
 
   testDynamo:
     handler: handler.testDynamo
@@ -120,4 +113,11 @@ functions:
     events:
       - httpApi:
           path: /models/list 
+          method: GET
+
+  listMyModels:
+    handler: handler.listMyModels
+    events:
+      - httpApi:
+          path: /models/my-models
           method: GET

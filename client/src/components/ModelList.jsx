@@ -551,23 +551,29 @@ const ModelList = () => {
       setLoading(true);
 
       try {
-        // Fetch models and user credits in parallel
-        const [modelsResponse, creditsResponse] = await Promise.all([
-          fetch(`${API_CONFIG.AWS_API_ENDPOINT}/models/list`, {
+        // Fetch user's models (requires authentication)
+        const modelsResponse = await fetch(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.MODELS.LIST}`,
+          {
             method: "GET",
             headers: {
               Authorization: `Bearer ${user?.token || ""}`,
               "Content-Type": "application/json",
             },
-          }),
-          fetch(`${API_CONFIG.BASE_URL}/auth/credits`, {
+          }
+        );
+
+        // Fetch user credits separately
+        const creditsResponse = await fetch(
+          `${API_CONFIG.BASE_URL}/auth/credits`,
+          {
             method: "GET",
             headers: {
               Authorization: `Bearer ${user?.token || ""}`,
               "Content-Type": "application/json",
             },
-          }),
-        ]);
+          }
+        );
 
         // Handle models response
         if (!modelsResponse.ok) {
@@ -578,10 +584,6 @@ const ModelList = () => {
         }
 
         const modelsData = await modelsResponse.json();
-        if (modelsData.success === false) {
-          throw new Error(modelsData.error || "Failed to fetch models list");
-        }
-
         setModels(modelsData.models || []);
 
         // Handle credits response

@@ -11,7 +11,8 @@ export const API_CONFIG = {
     MODELS: {
       UPLOAD: "/api/models/upload",
       // FIX: Updated to match backend route
-      LIST: "/models/list",
+      LIST: "/models/list", // User's models only (requires auth)
+      MARKETPLACE: "/models/marketplace", // All models (public)
       GET: (id) => `/api/models/${id}`,
     },
     REGENERATE_API_KEY: "/auth/regenerate-api-key",
