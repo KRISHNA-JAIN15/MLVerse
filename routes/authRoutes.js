@@ -24,5 +24,29 @@ module.exports = (userOps) => {
     controller.regenerateApiKey
   );
 
+  // Get user credits
+  router.get("/credits", authMiddleware.verifyToken, async (req, res) => {
+    try {
+      const user = await userOps.getUserById(req.user.userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: "User not found",
+        });
+      }
+
+      res.json({
+        success: true,
+        credits: user.credits || 0,
+      });
+    } catch (error) {
+      console.error("Error getting user credits:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to get credits",
+      });
+    }
+  });
+
   return router;
 };

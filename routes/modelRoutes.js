@@ -36,8 +36,16 @@ router.post(
   async (req, res) => {
     try {
       const { file } = req;
-      const { name, description, modelType, framework, inputs, outputType } =
-        req.body;
+      const {
+        name,
+        description,
+        modelType,
+        framework,
+        inputs,
+        outputType,
+        pricingType,
+        creditsPerCall,
+      } = req.body;
 
       // Upload file to S3
       const s3Key = `models/${req.user.userId}/${Date.now()}-${
@@ -67,6 +75,9 @@ router.post(
         inputs: JSON.parse(inputs),
         outputType,
         s3Key,
+        pricingType: pricingType || "free",
+        creditsPerCall:
+          pricingType === "paid" ? parseInt(creditsPerCall) || 1 : 0,
       };
 
       const result = await modelOperations.createModel(modelData);

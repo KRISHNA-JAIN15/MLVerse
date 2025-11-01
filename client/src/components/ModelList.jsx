@@ -341,12 +341,7 @@ const generateRequestBody = (inputs) => {
 
 // Utility function to generate the prediction endpoint URL
 const generateEndpointUrl = (modelId) => {
-  if (
-    !API_CONFIG.AWS_API_ENDPOINT ||
-    API_CONFIG.AWS_API_ENDPOINT.includes("<API_GATEWAY_URL>")
-  ) {
-    return "AWS_API_ENDPOINT not configured. Please check src/config/api.js";
-  }
+  // Use the local prediction endpoint we created
   return `${API_CONFIG.AWS_API_ENDPOINT}/models/${modelId}/predict`;
 };
 
@@ -356,10 +351,11 @@ const ModelCard = ({ model }) => {
   const [modalType, setModalType] = useState(null); // 'body' or 'endpoint'
   const [copied, setCopied] = useState(false);
 
-  const costPerPrediction = model.costPerPrediction || 0;
-  const costLabel =
-    costPerPrediction > 0 ? `Paid: ${costPerPrediction} credits` : "Free";
-  const costIcon = costPerPrediction > 0 ? <PaidIcon /> : <FreeBreakfastIcon />;
+  // Use the correct field names from backend
+  const isPaid = model.pricingType === "paid";
+  const creditsPerCall = model.creditsPerCall || 0;
+  const costLabel = isPaid ? `Paid: ${creditsPerCall} credits/call` : "Free";
+  const costIcon = isPaid ? <PaidIcon /> : <FreeBreakfastIcon />;
 
   const handleOpenModal = (type) => {
     setModalType(type);
@@ -406,7 +402,7 @@ const ModelCard = ({ model }) => {
         <Chip
           icon={costIcon}
           label={costLabel}
-          color={costPerPrediction > 0 ? "error" : "success"}
+          color={isPaid ? "error" : "success"}
           size="small"
           sx={{ ml: 1, fontWeight: "bold" }}
         />
@@ -440,6 +436,34 @@ const ModelCard = ({ model }) => {
       <Typography variant="subtitle2" sx={{ mt: 1 }}>
         **Framework:** {model.framework} | **Output:** {model.outputType}
       </Typography>
+
+      {/* Pricing Information */}
+      <Box sx={{ mt: 1 }}>
+        <Typography variant="subtitle2" component="div">
+          **Pricing:**
+        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
+          {isPaid ? (
+            <>
+              <PaidIcon color="error" fontSize="small" />
+              <Typography variant="body2" color="error.main" fontWeight="bold">
+                {creditsPerCall} credits per API call
+              </Typography>
+            </>
+          ) : (
+            <>
+              <FreeBreakfastIcon color="success" fontSize="small" />
+              <Typography
+                variant="body2"
+                color="success.main"
+                fontWeight="bold"
+              >
+                Free to use
+              </Typography>
+            </>
+          )}
+        </Box>
+      </Box>
 
       {/* Buttons */}
       <Box sx={{ mt: "auto", display: "flex", gap: 1, pt: 2 }}>
@@ -513,6 +537,7 @@ const ModelList = () => {
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [userCredits, setUserCredits] = useState(0);
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -526,49 +551,56 @@ const ModelList = () => {
       setLoading(true);
 
       try {
-        // FIX: Replaced the broken string assignment with a native fetch call
-        const url = `${API_CONFIG.AWS_API_ENDPOINT}/models/list`;
+        // Fetch models and user credits in parallel
+        const [modelsResponse, creditsResponse] = await Promise.all([
+          fetch(`${API_CONFIG.AWS_API_ENDPOINT}/models/list`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${user?.token || ""}`,
+              "Content-Type": "application/json",
+            },
+          }),
+          fetch(`${API_CONFIG.BASE_URL}/auth/credits`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${user?.token || ""}`,
+              "Content-Type": "application/json",
+            },
+          }),
+        ]);
 
-        // Execute the fetch request
-        const fetchResponse = await fetch(url, {
-          method: "GET",
-          headers: {
-            // Pass the API key for authentication
-            "X-Api-Key": user?.api_key || "",
-            "Content-Type": "application/json",
-          },
-        });
-
-        // Handle non-200 HTTP status codes
-        if (!fetchResponse.ok) {
-          const errorData = await fetchResponse.json();
-          // Throw an error with the status/message from the backend
+        // Handle models response
+        if (!modelsResponse.ok) {
+          const errorData = await modelsResponse.json();
           throw new Error(
-            errorData.error || `HTTP Error! Status: ${fetchResponse.status}`
+            errorData.error || `HTTP Error! Status: ${modelsResponse.status}`
           );
         }
 
-        // Parse the successful response body
-        const responseData = await fetchResponse.json();
-
-        // Check the 'success' flag in the parsed data (was previously attempting to read .data.success)
-        if (responseData.success === false) {
-          throw new Error(responseData.error || "Failed to fetch models list");
+        const modelsData = await modelsResponse.json();
+        if (modelsData.success === false) {
+          throw new Error(modelsData.error || "Failed to fetch models list");
         }
 
-        // Access models property directly from the parsed JSON
-        setModels(responseData.models || []);
+        setModels(modelsData.models || []);
+
+        // Handle credits response
+        if (creditsResponse.ok) {
+          const creditsData = await creditsResponse.json();
+          if (creditsData.success !== false) {
+            setUserCredits(creditsData.credits || 0);
+          }
+        }
       } catch (err) {
-        console.error("Error fetching models:", err);
-        // Use err.message for generic error display since fetch doesn't have err.response
-        setError(err.message || "Failed to load models.");
+        console.error("Error fetching data:", err);
+        setError(err.message || "Failed to load data.");
       } finally {
         setLoading(false);
       }
     };
 
     fetchModels();
-  }, [user]); // Retaining the [user] dependency array as requested
+  }, [user]);
 
   if (loading) {
     return (
@@ -595,13 +627,29 @@ const ModelList = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Your Deployed Models ({models.length})
-      </Typography>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        sx={{ mb: 3 }}
+      >
+        <Typography variant="h4" component="h1">
+          Your Deployed Models ({models.length})
+        </Typography>
+        <Paper
+          elevation={2}
+          sx={{ p: 2, bgcolor: "primary.main", color: "white" }}
+        >
+          <Typography variant="h6" component="div" sx={{ fontWeight: "bold" }}>
+            💰 Credits: {userCredits}
+          </Typography>
+        </Paper>
+      </Box>
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        The Endpoint URL assumes a `/dev` stage deployment. Remember to send
-        your API Key in the `X-Api-Key` header for authentication.
+        These are your deployed models. Use the endpoint URLs with your API Key
+        in the `X-Api-Key` header for authentication. Free models don't consume
+        credits, while paid models will deduct the specified credits per call.
       </Alert>
 
       {models.length === 0 ? (
@@ -610,13 +658,50 @@ const ModelList = () => {
           one.
         </Alert>
       ) : (
-        <Grid container spacing={3}>
-          {models.map((model) => (
-            <Grid item key={model.modelId} xs={12} sm={6} md={4}>
-              <ModelCard model={model} />
+        <>
+          {/* Models Summary */}
+          <Box sx={{ mb: 3 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <Paper
+                  elevation={1}
+                  sx={{ p: 2, bgcolor: "success.light", color: "white" }}
+                >
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <FreeBreakfastIcon />
+                    <Typography variant="h6" fontWeight="bold">
+                      Free Models:{" "}
+                      {models.filter((m) => m.pricingType !== "paid").length}
+                    </Typography>
+                  </Box>
+                </Paper>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Paper
+                  elevation={1}
+                  sx={{ p: 2, bgcolor: "error.light", color: "white" }}
+                >
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <PaidIcon />
+                    <Typography variant="h6" fontWeight="bold">
+                      Paid Models:{" "}
+                      {models.filter((m) => m.pricingType === "paid").length}
+                    </Typography>
+                  </Box>
+                </Paper>
+              </Grid>
             </Grid>
-          ))}
-        </Grid>
+          </Box>
+
+          {/* Models Grid */}
+          <Grid container spacing={3}>
+            {models.map((model) => (
+              <Grid item key={model.modelId} xs={12} sm={6} md={4}>
+                <ModelCard model={model} />
+              </Grid>
+            ))}
+          </Grid>
+        </>
       )}
     </Container>
   );

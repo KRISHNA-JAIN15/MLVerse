@@ -35,17 +35,17 @@ const userOperations = (db) => ({
       const query = "SELECT * FROM users WHERE email = ?";
       db.query(query, [email], async (err, results) => {
         if (err) {
-          console.error('Database error during login:', err);
+          console.error("Database error during login:", err);
           reject(new Error("Database error occurred during login"));
           return;
         }
-        
+
         const user = results[0];
         if (!user) {
           reject(new Error("User not found"));
           return;
         }
-        
+
         try {
           const isValid = await bcrypt.compare(password, user.password);
           if (isValid) {
@@ -56,7 +56,7 @@ const userOperations = (db) => ({
             reject(new Error("Invalid password"));
           }
         } catch (error) {
-          console.error('Password verification error:', error);
+          console.error("Password verification error:", error);
           reject(new Error("Error verifying password"));
         }
       });
@@ -199,6 +199,97 @@ const userOperations = (db) => ({
               }
             }
           );
+        }
+      });
+    });
+  },
+
+  // Deduct credits from user
+  deductCredits: async (userId, amount) => {
+    return new Promise((resolve, reject) => {
+      // First check if user has enough credits
+      db.query(
+        "SELECT credits FROM users WHERE id = ?",
+        [userId],
+        (err, results) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+
+          const currentCredits = results[0]?.credits || 0;
+          if (currentCredits < amount) {
+            reject(new Error("Insufficient credits"));
+            return;
+          }
+
+          // Deduct credits
+          const query = `
+            UPDATE users
+            SET credits = credits - ?
+            WHERE id = ? AND credits >= ?
+          `;
+          db.query(query, [amount, userId, amount], (err, result) => {
+            if (err) {
+              reject(err);
+            } else if (result.affectedRows === 0) {
+              reject(new Error("Insufficient credits or user not found"));
+            } else {
+              db.query(
+                "SELECT credits FROM users WHERE id = ?",
+                [userId],
+                (err, results) => {
+                  if (err) {
+                    reject(err);
+                  } else {
+                    resolve(results[0]?.credits);
+                  }
+                }
+              );
+            }
+          });
+        }
+      );
+    });
+  },
+
+  // Add credits to model owner (for paid model usage)
+  addCreditsToOwner: async (ownerId, amount) => {
+    return new Promise((resolve, reject) => {
+      const query = `
+        UPDATE users
+        SET credits = credits + ?
+        WHERE id = ?
+      `;
+      db.query(query, [amount, ownerId], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          db.query(
+            "SELECT credits FROM users WHERE id = ?",
+            [ownerId],
+            (err, results) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(results[0]?.credits);
+              }
+            }
+          );
+        }
+      });
+    });
+  },
+
+  // Get user by API key
+  getUserByApiKey: async (apiKey) => {
+    return new Promise((resolve, reject) => {
+      const query = "SELECT * FROM users WHERE api_key = ?";
+      db.query(query, [apiKey], (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results[0] || null);
         }
       });
     });

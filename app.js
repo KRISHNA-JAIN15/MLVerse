@@ -20,7 +20,7 @@ app.use(
   cors({
     origin: "http://localhost:5173", // Vite's default port
     methods: ["GET", "POST", "PUT", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Api-Key"],
     credentials: true,
   })
 );
@@ -139,6 +139,7 @@ module.exports.db = db;
 const dbRoutes = require("./routes/dbRoutes");
 const authRoutes = require("./routes/authRoutes");
 const modelRoutes = require("./routes/modelRoutes");
+const predictionRoutes = require("./routes/predictionRoutes");
 const userOperations = require("./models/userOperations");
 
 const startServer = () => {
@@ -150,6 +151,7 @@ const startServer = () => {
     app.use("/api", dbRoutes(db));
     app.use("/auth", authRoutes(userOps));
     app.use("/api/models", modelRoutes);
+    app.use("/api/predict", predictionRoutes(db));
 
     // Razorpay payment routes
     const razorpayRoutes = require("./config/razorpay/productRoutes");

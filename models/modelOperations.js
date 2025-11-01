@@ -3,6 +3,7 @@ const {
   PutCommand,
   QueryCommand,
   GetCommand,
+  ScanCommand,
 } = require("@aws-sdk/lib-dynamodb");
 
 const modelOperations = {
@@ -22,6 +23,8 @@ const modelOperations = {
         inputs: modelData.inputs,
         outputType: modelData.outputType,
         s3Key: modelData.s3Key,
+        pricingType: modelData.pricingType || "free",
+        creditsPerCall: modelData.creditsPerCall || 0,
         createdAt: new Date().toISOString(),
       },
     };
@@ -68,6 +71,44 @@ const modelOperations = {
     } catch (error) {
       console.error("Error getting model:", error);
       throw error;
+    }
+  },
+
+  // Get model by modelId only (for public access)
+  getModelByIdOnly: async (modelId) => {
+    const params = {
+      TableName: TABLE_NAME,
+      IndexName: "modelId-index", // Requires GSI on modelId
+      KeyConditionExpression: "modelId = :modelId",
+      ExpressionAttributeValues: {
+        ":modelId": modelId,
+      },
+      Limit: 1,
+    };
+
+    try {
+      const result = await dynamodb.send(new QueryCommand(params));
+      return result.Items && result.Items.length > 0 ? result.Items[0] : null;
+    } catch (error) {
+      console.error("Error getting model by ID only:", error);
+      // If GSI doesn't exist, fall back to scan (not recommended for production)
+      console.log("Falling back to scan operation...");
+      try {
+        const scanParams = {
+          TableName: TABLE_NAME,
+          FilterExpression: "modelId = :modelId",
+          ExpressionAttributeValues: {
+            ":modelId": modelId,
+          },
+        };
+        const scanResult = await dynamodb.send(new ScanCommand(scanParams));
+        return scanResult.Items && scanResult.Items.length > 0
+          ? scanResult.Items[0]
+          : null;
+      } catch (scanError) {
+        console.error("Error in fallback scan:", scanError);
+        throw scanError;
+      }
     }
   },
 };

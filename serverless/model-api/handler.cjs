@@ -60,6 +60,69 @@ const getUserByApiKey = async (apiKey) => {
   }
 };
 
+/**
+ * Deduct credits from user account
+ */
+const debitCredits = async (userId, amount) => {
+  let connection;
+  try {
+    connection = await mysql.createConnection(dbConfig);
+
+    // Check current credits first
+    const [userRows] = await connection.execute(
+      "SELECT credits FROM users WHERE id = ?",
+      [userId]
+    );
+
+    if (!userRows[0] || userRows[0].credits < amount) {
+      throw new Error("Insufficient credits");
+    }
+
+    // Deduct credits
+    const [result] = await connection.execute(
+      "UPDATE users SET credits = credits - ? WHERE id = ? AND credits >= ?",
+      [amount, userId, amount]
+    );
+
+    if (result.affectedRows === 0) {
+      throw new Error("Failed to deduct credits");
+    }
+
+    return true;
+  } catch (e) {
+    console.error("Error debiting credits:", e);
+    throw e;
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
+  }
+};
+
+/**
+ * Add credits to model owner account
+ */
+const creditModelOwner = async (ownerId, amount) => {
+  let connection;
+  try {
+    connection = await mysql.createConnection(dbConfig);
+
+    const [result] = await connection.execute(
+      "UPDATE users SET credits = credits + ? WHERE id = ?",
+      [amount, ownerId]
+    );
+
+    return result.affectedRows > 0;
+  } catch (e) {
+    console.error("Error crediting model owner:", e);
+    throw e;
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
+  }
+};
+
 // --- NEW getModelMetadata ---
 /**
  * Fetches model metadata from DynamoDB using ONLY the modelId.
@@ -120,9 +183,6 @@ const authenticate = async (event) => {
   if (!user || user.api_key !== apiKey) {
     return { error: "Invalid API Key or user not found", user: null };
   }
-  if (user.credits <= 0) {
-    return { error: "Insufficient credits", user: null };
-  }
 
   return { error: null, user };
 };
@@ -147,7 +207,7 @@ exports.listModels = async (event) => {
     const scanParams = {
       TableName: DYNAMO_TABLE_NAME,
       ProjectionExpression:
-        "modelId, #n, description, inputs, framework, outputType, costPerPrediction",
+        "modelId, #n, description, inputs, framework, outputType, pricingType, creditsPerCall, createdAt",
       ExpressionAttributeNames: {
         "#n": "name",
       },
@@ -305,11 +365,30 @@ exports.predictModel = async (event) => {
         default:
           break;
       }
-    } // 4. Model Loading and Prediction (MOCKED)
-    //
-    // TODO: Here you would debit credits from the 'user' object
-    // e.g., await debitCredits(user.id, modelMetadata.costPerPrediction);
-    //
+    } // 4. Model Loading and Prediction (MOCKED) + Credit Management
+
+    // Check if model requires credits
+    const isModelPaid = modelMetadata.pricingType === "paid";
+    const creditsRequired = isModelPaid ? modelMetadata.creditsPerCall || 1 : 0;
+
+    if (isModelPaid) {
+      // Check if user has enough credits
+      if (user.credits < creditsRequired) {
+        return respond(402, {
+          success: false,
+          error: "Insufficient credits",
+          required: creditsRequired,
+          available: user.credits,
+        });
+      }
+
+      // Deduct credits from user and add to model owner
+      await Promise.all([
+        debitCredits(user.id, creditsRequired),
+        creditModelOwner(parseInt(modelMetadata.userId), creditsRequired),
+      ]);
+    }
+
     const mockPrediction = {
       result:
         modelMetadata.modelType === "Classification"
@@ -326,10 +405,13 @@ exports.predictModel = async (event) => {
       success: true,
       message: "Prediction successful (MOCKED). Validation Passed.",
       prediction: mockPrediction,
+      creditsUsed: creditsRequired,
+      remainingCredits: user.credits - creditsRequired,
       modelInfo: {
         name: modelMetadata.name,
         framework: modelMetadata.framework,
         outputType: modelMetadata.outputType,
+        pricingType: modelMetadata.pricingType,
         apiEndpointExample: `website.user.modelname.version/models/${modelMetadata.modelId}/predict`,
       },
     });
