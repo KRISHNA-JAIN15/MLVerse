@@ -14,9 +14,16 @@ import {
   IconButton,
   Grid,
   Chip,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormLabel,
+  Divider,
+  Stack,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { API_CONFIG } from "../config/api";
 import { useAuth } from "../context/useAuth";
 
@@ -50,6 +57,8 @@ const AddModel = () => {
     framework: "",
     outputType: "",
     inputs: [],
+    pricingType: "free",
+    creditsPerCall: 1,
   });
 
   const [inputField, setInputField] = useState({
@@ -60,8 +69,10 @@ const AddModel = () => {
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
+    if (!file) return;
+
     const allowedTypes = [".pkl", ".h5", ".joblib", ".save", ".pt", ".pth"];
-    const fileExt = file.name.toLowerCase().match(/\.[^.]*$/)[0];
+    const fileExt = file.name.toLowerCase().match(/\.[^.]*$/)?.[0];
 
     if (!allowedTypes.includes(fileExt)) {
       setError("Invalid file type. Only ML model files are allowed.");
@@ -69,7 +80,6 @@ const AddModel = () => {
     }
 
     if (file.size > 100 * 1024 * 1024) {
-      // 100MB
       setError("File size too large. Maximum size is 100MB.");
       return;
     }
@@ -94,6 +104,7 @@ const AddModel = () => {
       type: "numeric",
       description: "",
     });
+    setError("");
   };
 
   const handleInputDelete = (index) => {
@@ -127,6 +138,13 @@ const AddModel = () => {
         throw new Error("Please add at least one input specification");
       }
 
+      if (
+        formData.pricingType === "paid" &&
+        (!formData.creditsPerCall || formData.creditsPerCall < 1)
+      ) {
+        throw new Error("Please specify credits per call (minimum 1)");
+      }
+
       const formPayload = new FormData();
       formPayload.append("model", modelFile);
       formPayload.append("name", formData.name);
@@ -135,6 +153,10 @@ const AddModel = () => {
       formPayload.append("framework", formData.framework);
       formPayload.append("outputType", formData.outputType);
       formPayload.append("inputs", JSON.stringify(formData.inputs));
+      formPayload.append("pricingType", formData.pricingType);
+      if (formData.pricingType === "paid") {
+        formPayload.append("creditsPerCall", formData.creditsPerCall);
+      }
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/models/upload`, {
         method: "POST",
@@ -150,7 +172,8 @@ const AddModel = () => {
         throw new Error(data.error || "Failed to upload model");
       }
 
-      setSuccess("Model uploaded successfully");
+      setSuccess("Model uploaded successfully!");
+
       // Reset form
       setFormData({
         name: "",
@@ -159,6 +182,8 @@ const AddModel = () => {
         framework: "",
         outputType: "",
         inputs: [],
+        pricingType: "free",
+        creditsPerCall: 1,
       });
       setModelFile(null);
     } catch (err) {
@@ -170,40 +195,74 @@ const AddModel = () => {
 
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 4 }}>
-        <Typography variant="h5" gutterBottom>
+      <Paper elevation={3} sx={{ p: 4 }}>
+        <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
           Upload ML Model
         </Typography>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
             {error}
           </Alert>
         )}
 
         {success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
+          <Alert
+            severity="success"
+            sx={{ mb: 3 }}
+            onClose={() => setSuccess("")}
+          >
             {success}
           </Alert>
         )}
 
         <Box component="form" onSubmit={handleSubmit}>
-          <Grid container spacing={3}>
-            {/* File Upload */}
-            <Grid item xs={12}>
-              <Button variant="outlined" component="label" fullWidth>
-                {modelFile ? modelFile.name : "Choose Model File"}
-                <input
-                  type="file"
-                  hidden
-                  onChange={handleFileChange}
-                  accept=".pkl,.h5,.joblib,.save,.pt,.pth"
-                />
-              </Button>
-            </Grid>
+          {/* File Upload Section */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+              Model File
+            </Typography>
+            <Button
+              variant="outlined"
+              component="label"
+              fullWidth
+              startIcon={<CloudUploadIcon />}
+              sx={{
+                py: 2,
+                borderStyle: "dashed",
+                borderWidth: 2,
+                "&:hover": { borderStyle: "dashed", borderWidth: 2 },
+              }}
+            >
+              {modelFile
+                ? modelFile.name
+                : "Choose Model File (.pkl, .h5, .joblib, .pt, .pth)"}
+              <input
+                type="file"
+                hidden
+                onChange={handleFileChange}
+                accept=".pkl,.h5,.joblib,.save,.pt,.pth"
+              />
+            </Button>
+            {modelFile && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mt: 1, display: "block" }}
+              >
+                File size: {(modelFile.size / (1024 * 1024)).toFixed(2)} MB
+              </Typography>
+            )}
+          </Box>
 
-            {/* Basic Information */}
-            <Grid item xs={12}>
+          <Divider sx={{ my: 3 }} />
+
+          {/* Basic Information */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+              Basic Information
+            </Typography>
+            <Stack spacing={3}>
               <TextField
                 required
                 fullWidth
@@ -212,15 +271,14 @@ const AddModel = () => {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, name: e.target.value }))
                 }
+                placeholder="e.g., Customer Churn Predictor"
               />
-            </Grid>
 
-            <Grid item xs={12}>
               <TextField
                 fullWidth
                 label="Description"
                 multiline
-                rows={3}
+                rows={4}
                 value={formData.description}
                 onChange={(e) =>
                   setFormData((prev) => ({
@@ -228,164 +286,275 @@ const AddModel = () => {
                     description: e.target.value,
                   }))
                 }
+                placeholder="Describe what your model does and its use cases..."
               />
-            </Grid>
+            </Stack>
+          </Box>
 
-            {/* Model Type and Framework */}
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth required>
-                <InputLabel>Model Type</InputLabel>
-                <Select
-                  value={formData.modelType}
-                  label="Model Type"
+          <Divider sx={{ my: 3 }} />
+
+          {/* Model Configuration */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+              Model Configuration
+            </Typography>
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth required>
+                  <InputLabel
+                    id="model-type-label"
+                    sx={{ backgroundColor: "white", px: 0.5 }}
+                  >
+                    Model Type
+                  </InputLabel>
+                  <Select
+                    labelId="model-type-label"
+                    id="model-type-select"
+                    value={formData.modelType}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        modelType: e.target.value,
+                      }))
+                    }
+                  >
+                    <MenuItem value="">
+                      <em>Select Model Type</em>
+                    </MenuItem>
+                    {MODEL_TYPES.map((type) => (
+                      <MenuItem key={type} value={type}>
+                        {type}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth required>
+                  <InputLabel
+                    id="framework-label"
+                    sx={{ backgroundColor: "white", px: 0.5 }}
+                  >
+                    Framework
+                  </InputLabel>
+                  <Select
+                    labelId="framework-label"
+                    id="framework-select"
+                    value={formData.framework}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        framework: e.target.value,
+                      }))
+                    }
+                  >
+                    <MenuItem value="">
+                      <em>Select Framework</em>
+                    </MenuItem>
+                    {FRAMEWORKS.map((framework) => (
+                      <MenuItem key={framework} value={framework}>
+                        {framework}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  required
+                  fullWidth
+                  label="Output Type"
+                  value={formData.outputType}
                   onChange={(e) =>
                     setFormData((prev) => ({
                       ...prev,
-                      modelType: e.target.value,
+                      outputType: e.target.value,
                     }))
                   }
-                >
-                  {MODEL_TYPES.map((type) => (
-                    <MenuItem key={type} value={type}>
-                      {type}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  placeholder="e.g., binary classification, probability scores, regression value"
+                  helperText="Describe what the model returns"
+                />
+              </Grid>
             </Grid>
+          </Box>
 
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth required>
-                <InputLabel>Framework</InputLabel>
-                <Select
-                  value={formData.framework}
-                  label="Framework"
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      framework: e.target.value,
-                    }))
-                  }
+          <Divider sx={{ my: 3 }} />
+
+          {/* Input Specifications */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+              Input Specifications
+            </Typography>
+
+            <Paper variant="outlined" sx={{ p: 3, mb: 2 }}>
+              <Grid container spacing={2} alignItems="flex-end">
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    label="Input Name"
+                    value={inputField.name}
+                    onChange={(e) =>
+                      setInputField((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g., age"
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel
+                      id="input-type-label"
+                      sx={{ backgroundColor: "white", px: 0.5 }}
+                    >
+                      Type
+                    </InputLabel>
+                    <Select
+                      labelId="input-type-label"
+                      id="input-type-select"
+                      value={inputField.type}
+                      onChange={(e) =>
+                        setInputField((prev) => ({
+                          ...prev,
+                          type: e.target.value,
+                        }))
+                      }
+                    >
+                      {INPUT_TYPES.map((type) => (
+                        <MenuItem key={type} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    label="Description (Optional)"
+                    value={inputField.description}
+                    onChange={(e) =>
+                      setInputField((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g., Customer age in years"
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={1}>
+                  <IconButton
+                    color="primary"
+                    onClick={handleInputAdd}
+                    sx={{
+                      bgcolor: "primary.main",
+                      color: "white",
+                      "&:hover": { bgcolor: "primary.dark" },
+                    }}
+                  >
+                    <AddIcon />
+                  </IconButton>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            {formData.inputs.length > 0 ? (
+              <Box>
+                <Typography
+                  variant="subtitle2"
+                  color="text.secondary"
+                  gutterBottom
                 >
-                  {FRAMEWORKS.map((framework) => (
-                    <MenuItem key={framework} value={framework}>
-                      {framework}
-                    </MenuItem>
+                  Added Inputs ({formData.inputs.length}):
+                </Typography>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  {formData.inputs.map((input, index) => (
+                    <Chip
+                      key={index}
+                      label={`${input.name} (${input.type})`}
+                      onDelete={() => handleInputDelete(index)}
+                      color="primary"
+                      variant="outlined"
+                    />
                   ))}
-                </Select>
-              </FormControl>
-            </Grid>
+                </Box>
+              </Box>
+            ) : (
+              <Alert severity="info">
+                Add at least one input specification for your model
+              </Alert>
+            )}
+          </Box>
 
-            {/* Output Type */}
-            <Grid item xs={12}>
-              <TextField
-                required
-                fullWidth
-                label="Output Type"
-                value={formData.outputType}
+          <Divider sx={{ my: 3 }} />
+
+          {/* Pricing Configuration */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+              Pricing Configuration
+            </Typography>
+            <FormControl component="fieldset">
+              <FormLabel component="legend">Pricing Type</FormLabel>
+              <RadioGroup
+                row
+                value={formData.pricingType}
                 onChange={(e) =>
                   setFormData((prev) => ({
                     ...prev,
-                    outputType: e.target.value,
+                    pricingType: e.target.value,
                   }))
                 }
-                helperText="Describe the model's output (e.g., binary classification, regression value, probability scores)"
-              />
-            </Grid>
-
-            {/* Input Specifications */}
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>
-                Input Specifications
-              </Typography>
-
-              <Box sx={{ mb: 2 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Input Name"
-                      value={inputField.name}
-                      onChange={(e) =>
-                        setInputField((prev) => ({
-                          ...prev,
-                          name: e.target.value,
-                        }))
-                      }
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>Type</InputLabel>
-                      <Select
-                        value={inputField.type}
-                        label="Type"
-                        onChange={(e) =>
-                          setInputField((prev) => ({
-                            ...prev,
-                            type: e.target.value,
-                          }))
-                        }
-                      >
-                        {INPUT_TYPES.map((type) => (
-                          <MenuItem key={type} value={type}>
-                            {type}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Description"
-                      value={inputField.description}
-                      onChange={(e) =>
-                        setInputField((prev) => ({
-                          ...prev,
-                          description: e.target.value,
-                        }))
-                      }
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={1}>
-                    <IconButton
-                      color="primary"
-                      onClick={handleInputAdd}
-                      sx={{ mt: 1 }}
-                    >
-                      <AddIcon />
-                    </IconButton>
-                  </Grid>
-                </Grid>
-              </Box>
-
-              {/* Input List */}
-              <Box sx={{ mt: 2 }}>
-                {formData.inputs.map((input, index) => (
-                  <Chip
-                    key={index}
-                    label={`${input.name} (${input.type})`}
-                    onDelete={() => handleInputDelete(index)}
-                    sx={{ m: 0.5 }}
-                  />
-                ))}
-              </Box>
-            </Grid>
-
-            {/* Submit Button */}
-            <Grid item xs={12}>
-              <Button
-                type="submit"
-                variant="contained"
-                fullWidth
-                disabled={loading}
-                sx={{ mt: 2 }}
               >
-                {loading ? "Uploading..." : "Upload Model"}
-              </Button>
-            </Grid>
-          </Grid>
+                <FormControlLabel
+                  value="free"
+                  control={<Radio />}
+                  label="Free"
+                />
+                <FormControlLabel
+                  value="paid"
+                  control={<Radio />}
+                  label="Paid (Credit-based)"
+                />
+              </RadioGroup>
+            </FormControl>
+
+            {formData.pricingType === "paid" && (
+              <Box sx={{ mt: 2 }}>
+                <TextField
+                  required
+                  type="number"
+                  label="Credits per Call"
+                  value={formData.creditsPerCall}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      creditsPerCall: parseInt(e.target.value) || 1,
+                    }))
+                  }
+                  inputProps={{ min: 1, max: 100 }}
+                  helperText="Number of credits required per API call"
+                  sx={{ maxWidth: 300 }}
+                />
+              </Box>
+            )}
+          </Box>
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            variant="contained"
+            fullWidth
+            disabled={loading}
+            size="large"
+            sx={{ mt: 2, py: 1.5 }}
+          >
+            {loading ? "Uploading..." : "Upload Model"}
+          </Button>
         </Box>
       </Paper>
     </Container>
