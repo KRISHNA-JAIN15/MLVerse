@@ -1,14 +1,17 @@
 const mysql = require("mysql2/promise");
+const crypto = require("crypto");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const {
   DynamoDBDocumentClient,
   GetCommand,
   ScanCommand,
   QueryCommand,
-} = require("@aws-sdk/lib-dynamodb"); // Added QueryCommand
+  PutCommand,
+} = require("@aws-sdk/lib-dynamodb"); // Added QueryCommand and PutCommand
 
 // --- Configuration from Environment Variables ---
 const DYNAMO_TABLE_NAME = process.env.DYNAMO_TABLE_NAME || "MLModels";
+const USAGE_TABLE_NAME = process.env.USAGE_TABLE_NAME || "ModelUsage";
 const AWS_REGION = process.env.AWS_REGION || "ap-south-1";
 
 // Database configuration (for authentication)
@@ -123,6 +126,51 @@ const creditModelOwner = async (ownerId, amount) => {
   }
 };
 
+/**
+ * Log model usage for analytics
+ */
+const logModelUsage = async (usageData) => {
+  try {
+    const { v4: uuidv4 } = await import("uuid");
+
+    // Validate required fields
+    if (!usageData.userId || !usageData.modelId) {
+      console.warn("Skipping usage logging - missing required fields:", {
+        userId: usageData.userId,
+        modelId: usageData.modelId,
+      });
+      return;
+    }
+
+    const usageRecord = {
+      usageId: crypto.randomUUID(), // Use crypto.randomUUID() instead of uuid package
+      timestamp: Date.now().toString(), // Use string timestamp to match table schema
+      modelId: usageData.modelId,
+      baseModelId: usageData.baseModelId || usageData.modelId,
+      version: usageData.version,
+      userId: String(usageData.userId),
+      ownerId: String(usageData.ownerId), // Use ownerId to match table schema
+      creditsEarned: usageData.creditsCharged || 0,
+      status: usageData.status || "success",
+      responseTimeMs: usageData.responseTimeMs || 0,
+      framework: usageData.framework || "unknown",
+      modelType: usageData.modelType || "unknown",
+      pricingType: usageData.pricingType || "unknown",
+    };
+
+    const params = {
+      TableName: USAGE_TABLE_NAME,
+      Item: usageRecord,
+    };
+
+    await dynamodb.send(new PutCommand(params));
+    console.log("Usage logged successfully:", usageRecord.usageId);
+  } catch (error) {
+    console.error("Error logging usage:", error);
+    // Don't throw error - usage logging shouldn't break predictions
+  }
+};
+
 // --- NEW getModelMetadata ---
 /**
  * Fetches model metadata from DynamoDB using ONLY the modelId.
@@ -133,6 +181,10 @@ const creditModelOwner = async (ownerId, amount) => {
  * Uses Scan operation with FilterExpression since no GSI is available.
  */
 const getModelMetadata = async (modelId) => {
+  console.log(
+    `DEBUG: Looking up model ${modelId} in table ${DYNAMO_TABLE_NAME}`
+  );
+
   // Use Scan to find the active model version
   // Look for both direct modelId matches (v1) and baseModelId matches (v2+)
   const params = {
@@ -146,8 +198,12 @@ const getModelMetadata = async (modelId) => {
     Limit: 1,
   };
 
+  console.log("DEBUG: Scan params:", JSON.stringify(params, null, 2));
+
   try {
     const result = await dynamodb.send(new ScanCommand(params));
+    console.log("DEBUG: Scan result:", JSON.stringify(result, null, 2));
+
     const item =
       result.Items && result.Items.length > 0 ? result.Items[0] : null;
 
@@ -161,6 +217,23 @@ const getModelMetadata = async (modelId) => {
       });
     } else {
       console.log(`Active model ${modelId} not found`);
+
+      // Try a broader search for debugging
+      const debugParams = {
+        TableName: DYNAMO_TABLE_NAME,
+        FilterExpression: "modelId = :mid",
+        ExpressionAttributeValues: {
+          ":mid": modelId,
+        },
+        Limit: 5,
+      };
+
+      console.log("DEBUG: Trying broader search...");
+      const debugResult = await dynamodb.send(new ScanCommand(debugParams));
+      console.log(
+        "DEBUG: Broader search result:",
+        JSON.stringify(debugResult, null, 2)
+      );
     }
 
     return item;
@@ -330,6 +403,8 @@ exports.testDynamo = async (event) => {
 
 exports.predictModelVersion = async (event) => {
   console.log("Versioned prediction request started.");
+  const startTime = Date.now();
+
   try {
     // 1. Authentication and Authorization (API Key)
     const authResult = await authenticate(event);
@@ -340,6 +415,7 @@ exports.predictModelVersion = async (event) => {
     }
 
     const user = authResult.user;
+    const userId = user.id;
 
     // Extract modelId and version from the dynamic path: /models/{modelId}/{version}/predict
     const modelId = event.pathParameters?.modelId;
@@ -504,6 +580,21 @@ exports.predictModelVersion = async (event) => {
       },
     };
 
+    // Log usage for analytics
+    await logModelUsage({
+      modelId: modelId,
+      baseModelId: modelMetadata.baseModelId || modelId,
+      version: version,
+      userId: userId,
+      ownerId: modelMetadata.userId,
+      creditsCharged: creditsRequired,
+      status: "success",
+      responseTimeMs: Date.now() - startTime,
+      framework: modelMetadata.framework,
+      modelType: modelMetadata.modelType,
+      pricingType: modelMetadata.pricingType,
+    });
+
     return respond(200, {
       success: true,
       message: `Prediction successful using ${modelMetadata.name} ${version}`,
@@ -522,6 +613,32 @@ exports.predictModelVersion = async (event) => {
     });
   } catch (error) {
     console.error("FATAL Versioned Prediction Error:", error);
+
+    // Log failed usage for analytics if we have enough context
+    try {
+      const { modelId, version } = event.pathParameters || {};
+      const authResult = await authenticate(event);
+      const userId = authResult.user?.id;
+
+      if (modelId && userId) {
+        await logModelUsage({
+          modelId: modelId,
+          baseModelId: modelId, // fallback for errors
+          version: version || "unknown",
+          userId: userId,
+          ownerId: "unknown", // can't get without model metadata
+          creditsCharged: 0, // no charge for failed requests
+          status: "error",
+          responseTimeMs: Date.now() - startTime,
+          framework: "unknown",
+          modelType: "unknown",
+          pricingType: "unknown",
+        });
+      }
+    } catch (logError) {
+      console.error("Failed to log error usage:", logError);
+    }
+
     return respond(500, {
       success: false,
       error:
@@ -659,7 +776,9 @@ const getModelVersionMetadata = async (modelId, version) => {
 
       // Check if the version is active
       if (!item.isActive) {
-        console.log(`Model ${modelId} version ${version} found but is not active`);
+        console.log(
+          `Model ${modelId} version ${version} found but is not active`
+        );
         return null; // Return null for inactive versions
       }
     } else {
@@ -680,6 +799,8 @@ const getModelVersionMetadata = async (modelId, version) => {
 
 exports.predictModel = async (event) => {
   console.log("Prediction request started.");
+  const startTime = Date.now();
+
   try {
     // 1. Authentication and Authorization (API Key)
     // This confirms the user is valid and has credits
@@ -690,7 +811,10 @@ exports.predictModel = async (event) => {
       return respond(statusCode, { success: false, error: authResult.error });
     }
     // We still get the user, as we may need it later (e.g., for debiting credits)
-    const user = authResult.user; // const userId = user.id; // No longer needed for the lookup // Extract modelId from the dynamic path: /models/{modelId}/predict
+    const user = authResult.user;
+    const userId = user.id; // Needed for usage logging
+
+    // Extract modelId from the dynamic path: /models/{modelId}/predict
     const modelId = event.pathParameters?.modelId;
     if (!modelId) {
       return respond(400, {
@@ -817,6 +941,21 @@ exports.predictModel = async (event) => {
       },
     }; // 5. Return Result
 
+    // Log usage for analytics
+    await logModelUsage({
+      modelId: modelId,
+      baseModelId: modelMetadata.baseModelId || modelId,
+      version: "latest", // predictModel uses latest version
+      userId: user.id,
+      ownerId: modelMetadata.userId,
+      creditsCharged: creditsRequired,
+      status: "success",
+      responseTimeMs: Date.now() - startTime,
+      framework: modelMetadata.framework,
+      modelType: modelMetadata.modelType,
+      pricingType: modelMetadata.pricingType,
+    });
+
     return respond(200, {
       success: true,
       message: "Prediction successful (MOCKED). Validation Passed.",
@@ -833,6 +972,32 @@ exports.predictModel = async (event) => {
     });
   } catch (error) {
     console.error("FATAL Prediction Error:", error);
+
+    // Log failed usage for analytics if we have enough context
+    try {
+      const modelId = event.pathParameters?.modelId;
+      const authResult = await authenticate(event);
+      const userId = authResult.user?.id;
+
+      if (modelId && userId) {
+        await logModelUsage({
+          modelId: modelId,
+          baseModelId: modelId, // fallback for errors
+          version: "latest",
+          userId: userId,
+          ownerId: "unknown", // can't get without model metadata
+          creditsCharged: 0, // no charge for failed requests
+          status: "error",
+          responseTimeMs: Date.now() - startTime,
+          framework: "unknown",
+          modelType: "unknown",
+          pricingType: "unknown",
+        });
+      }
+    } catch (logError) {
+      console.error("Failed to log error usage:", logError);
+    }
+
     return respond(500, {
       success: false,
       error:
@@ -855,4 +1020,323 @@ exports.corsHandler = async (event) => {
       "Access-Control-Allow-Credentials": true,
     }
   );
+};
+
+// Analytics Functions
+exports.getAnalyticsOverview = async (event) => {
+  console.log("Analytics overview request started");
+
+  try {
+    const authResult = await authenticate(event);
+    if (authResult.error) {
+      return respond(401, { success: false, error: authResult.error });
+    }
+
+    const userId = authResult.user.id.toString();
+    const { timeframe = "7d" } = event.queryStringParameters || {};
+
+    // Calculate time range
+    const now = Date.now();
+    const timeRanges = {
+      "24h": 24 * 60 * 60 * 1000,
+      "7d": 7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+      "90d": 90 * 24 * 60 * 60 * 1000,
+    };
+    const timeRange = timeRanges[timeframe] || timeRanges["7d"];
+    const startTime = now - timeRange;
+
+    // Query usage data for models owned by this user
+    const usageParams = {
+      TableName: USAGE_TABLE_NAME,
+      IndexName: "OwnerIdIndex",
+      KeyConditionExpression: "ownerId = :ownerId",
+      ExpressionAttributeValues: {
+        ":ownerId": userId,
+      },
+    };
+
+    const usageResult = await dynamodb.send(new QueryCommand(usageParams));
+    const allUsageData = usageResult.Items || [];
+
+    // Filter by time range
+    const usageData = allUsageData.filter((item) => {
+      const itemTimestamp =
+        typeof item.timestamp === "number"
+          ? item.timestamp
+          : new Date(item.timestamp).getTime();
+      return itemTimestamp >= startTime;
+    });
+
+    // Calculate overview statistics
+    const totalApiCalls = usageData.length;
+    const successfulCalls = usageData.filter(
+      (item) => item.status === "success"
+    ).length;
+    const totalCreditsEarned = usageData
+      .filter((item) => item.status === "success")
+      .reduce((sum, item) => sum + (parseFloat(item.creditsEarned) || 0), 0);
+
+    const uniqueModels = new Set(usageData.map((item) => item.modelId)).size;
+    const uniqueUsers = new Set(usageData.map((item) => item.userId)).size;
+
+    // Calculate average response time
+    const successfulCallsWithTime = usageData.filter(
+      (item) => item.status === "success" && item.responseTimeMs
+    );
+    const avgResponseTime =
+      successfulCallsWithTime.length > 0
+        ? successfulCallsWithTime.reduce(
+            (sum, item) => sum + parseFloat(item.responseTimeMs),
+            0
+          ) / successfulCallsWithTime.length
+        : 0;
+
+    // Calculate success rate
+    const successRate =
+      totalApiCalls > 0 ? (successfulCalls / totalApiCalls) * 100 : 0;
+
+    return respond(200, {
+      success: true,
+      data: {
+        totalApiCalls,
+        successfulCalls,
+        totalCreditsEarned: Math.round(totalCreditsEarned * 100) / 100,
+        uniqueModels,
+        uniqueUsers,
+        avgResponseTime: Math.round(avgResponseTime),
+        successRate: Math.round(successRate * 100) / 100,
+        timeframe,
+      },
+    });
+  } catch (error) {
+    console.error("Analytics overview error:", error);
+    return respond(500, {
+      success: false,
+      error: "Failed to fetch analytics overview",
+      details: error.message,
+    });
+  }
+};
+
+exports.getModelAnalytics = async (event) => {
+  console.log("Model analytics request started");
+
+  try {
+    const authResult = await authenticate(event);
+    if (authResult.error) {
+      return respond(401, { success: false, error: authResult.error });
+    }
+
+    const userId = authResult.user.id.toString();
+    const { timeframe = "7d" } = event.queryStringParameters || {};
+
+    // Calculate time range
+    const now = Date.now();
+    const timeRanges = {
+      "24h": 24 * 60 * 60 * 1000,
+      "7d": 7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+      "90d": 90 * 24 * 60 * 60 * 1000,
+    };
+    const timeRange = timeRanges[timeframe] || timeRanges["7d"];
+    const startTime = now - timeRange;
+
+    // Query usage data for models owned by this user
+    const usageParams = {
+      TableName: USAGE_TABLE_NAME,
+      IndexName: "OwnerIdIndex",
+      KeyConditionExpression: "ownerId = :ownerId",
+      ExpressionAttributeValues: {
+        ":ownerId": userId,
+      },
+    };
+
+    const usageResult = await dynamodb.send(new QueryCommand(usageParams));
+    const allUsageData = usageResult.Items || [];
+
+    // Filter by time range
+    const usageData = allUsageData.filter((item) => {
+      const itemTimestamp = new Date(item.timestamp).getTime();
+      return itemTimestamp >= startTime;
+    });
+
+    // Group by model and calculate statistics
+    const modelStats = {};
+
+    usageData.forEach((item) => {
+      const modelId = item.modelId;
+      if (!modelStats[modelId]) {
+        modelStats[modelId] = {
+          modelId,
+          totalCalls: 0,
+          successfulCalls: 0,
+          creditsEarned: 0,
+          avgResponseTime: 0,
+          responseTimes: [],
+          framework: item.framework || "Unknown",
+          modelType: item.modelType || "Unknown",
+          pricingType: item.pricingType || "Unknown",
+        };
+      }
+
+      modelStats[modelId].totalCalls++;
+      if (item.status === "success") {
+        modelStats[modelId].successfulCalls++;
+        modelStats[modelId].creditsEarned +=
+          parseFloat(item.creditsEarned) || 0;
+        if (item.responseTimeMs) {
+          modelStats[modelId].responseTimes.push(
+            parseFloat(item.responseTimeMs)
+          );
+        }
+      }
+    });
+
+    // Calculate average response times and success rates
+    const modelAnalytics = Object.values(modelStats).map((model) => {
+      const avgResponseTime =
+        model.responseTimes.length > 0
+          ? model.responseTimes.reduce((sum, time) => sum + time, 0) /
+            model.responseTimes.length
+          : 0;
+
+      const successRate =
+        model.totalCalls > 0
+          ? (model.successfulCalls / model.totalCalls) * 100
+          : 0;
+
+      return {
+        ...model,
+        avgResponseTime: Math.round(avgResponseTime),
+        successRate: Math.round(successRate * 100) / 100,
+        creditsEarned: Math.round(model.creditsEarned * 100) / 100,
+      };
+    });
+
+    // Sort by total calls (most popular first)
+    modelAnalytics.sort((a, b) => b.totalCalls - a.totalCalls);
+
+    return respond(200, {
+      success: true,
+      data: modelAnalytics,
+      timeframe,
+    });
+  } catch (error) {
+    console.error("Model analytics error:", error);
+    return respond(500, {
+      success: false,
+      error: "Failed to fetch model analytics",
+      details: error.message,
+    });
+  }
+};
+
+exports.getEarningsAnalytics = async (event) => {
+  console.log("Earnings analytics request started");
+
+  try {
+    const authResult = await authenticate(event);
+    if (authResult.error) {
+      return respond(401, { success: false, error: authResult.error });
+    }
+
+    const userId = authResult.user.id.toString();
+    const { timeframe = "7d" } = event.queryStringParameters || {};
+
+    // Calculate time range
+    const now = Date.now();
+    const timeRanges = {
+      "24h": 24 * 60 * 60 * 1000,
+      "7d": 7 * 24 * 60 * 60 * 1000,
+      "30d": 30 * 24 * 60 * 60 * 1000,
+      "90d": 90 * 24 * 60 * 60 * 1000,
+    };
+    const timeRange = timeRanges[timeframe] || timeRanges["7d"];
+    const startTime = now - timeRange;
+
+    // Query successful usage data for models owned by this user
+    const usageParams = {
+      TableName: USAGE_TABLE_NAME,
+      IndexName: "OwnerIdIndex",
+      KeyConditionExpression: "ownerId = :ownerId",
+      ExpressionAttributeValues: {
+        ":ownerId": userId,
+      },
+    };
+
+    const usageResult = await dynamodb.send(new QueryCommand(usageParams));
+    const allUsageData = usageResult.Items || [];
+
+    // Filter by time range and successful status
+    const usageData = allUsageData.filter((item) => {
+      const itemTimestamp = new Date(item.timestamp).getTime();
+      return itemTimestamp >= startTime && item.status === "success";
+    });
+
+    // Group earnings by time period (daily)
+    const dailyEarnings = {};
+    const modelEarnings = {};
+
+    usageData.forEach((item) => {
+      const date = new Date(parseInt(item.timestamp));
+      const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD format
+      const credits = parseFloat(item.creditsEarned) || 0;
+      const modelId = item.modelId;
+
+      // Daily earnings
+      if (!dailyEarnings[dateKey]) {
+        dailyEarnings[dateKey] = 0;
+      }
+      dailyEarnings[dateKey] += credits;
+
+      // Model earnings
+      if (!modelEarnings[modelId]) {
+        modelEarnings[modelId] = {
+          modelId,
+          credits: 0,
+          calls: 0,
+        };
+      }
+      modelEarnings[modelId].credits += credits;
+      modelEarnings[modelId].calls++;
+    });
+
+    // Convert to arrays and sort
+    const dailyData = Object.entries(dailyEarnings)
+      .map(([date, credits]) => ({
+        date,
+        credits: Math.round(credits * 100) / 100,
+      }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const modelData = Object.values(modelEarnings)
+      .map((model) => ({
+        ...model,
+        credits: Math.round(model.credits * 100) / 100,
+      }))
+      .sort((a, b) => b.credits - a.credits);
+
+    const totalEarnings = usageData.reduce(
+      (sum, item) => sum + (parseFloat(item.creditsEarned) || 0),
+      0
+    );
+
+    return respond(200, {
+      success: true,
+      data: {
+        totalEarnings: Math.round(totalEarnings * 100) / 100,
+        dailyEarnings: dailyData,
+        modelEarnings: modelData,
+        timeframe,
+      },
+    });
+  } catch (error) {
+    console.error("Earnings analytics error:", error);
+    return respond(500, {
+      success: false,
+      error: "Failed to fetch earnings analytics",
+      details: error.message,
+    });
+  }
 };

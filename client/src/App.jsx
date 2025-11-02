@@ -13,6 +13,7 @@ import Home from "./components/Home";
 import AddModel from "./components/AddModel";
 import ModelList from "./components/ModelList";
 import CommunityHub from "./components/CommunityHub";
+import Analytics from "./components/Analytics";
 import AuthProvider from "./context/AuthContext";
 import { useAuth } from "./context/useAuth";
 
@@ -72,6 +73,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <ModelList />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <Analytics />
             </ProtectedRoute>
           }
         />

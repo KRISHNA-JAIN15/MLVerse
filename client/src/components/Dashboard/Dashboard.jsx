@@ -414,7 +414,10 @@ const Dashboard = () => {
                 </Card>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <Card sx={{ textAlign: "center", p: 3 }}>
+                <Card
+                  sx={{ textAlign: "center", p: 3, cursor: "pointer" }}
+                  onClick={() => navigate("/analytics")}
+                >
                   <CardContent>
                     <TrendingUpIcon
                       sx={{ fontSize: 48, color: "warning.main", mb: 1 }}
@@ -423,7 +426,7 @@ const Dashboard = () => {
                       Analytics
                     </Typography>
                     <Typography variant="body2" color="textSecondary">
-                      Coming soon...
+                      View usage, earnings and model performance
                     </Typography>
                   </CardContent>
                 </Card>

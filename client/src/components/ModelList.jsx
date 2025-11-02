@@ -361,7 +361,12 @@ const generateEndpointUrl = (modelId, version = null) => {
 };
 
 // --- Model Card Component ---
-const ModelCard = ({ model, onOpenVersionUpload, onSetActiveVersion, onDeleteModel }) => {
+const ModelCard = ({
+  model,
+  onOpenVersionUpload,
+  onSetActiveVersion,
+  onDeleteModel,
+}) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState(null); // 'body' or 'endpoint'
   const [copied, setCopied] = useState(false);
@@ -779,8 +784,8 @@ const ModelCard = ({ model, onOpenVersionUpload, onSetActiveVersion, onDeleteMod
         </DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete this model? This action cannot be undone.
-            All versions of this model will be permanently deleted.
+            Are you sure you want to delete this model? This action cannot be
+            undone. All versions of this model will be permanently deleted.
           </Typography>
         </DialogContent>
         <DialogActions>

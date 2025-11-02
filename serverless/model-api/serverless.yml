@@ -34,6 +34,7 @@ provider:
     DB_PASSWORD: "12345678"
     DB_DATABASE: "ccrds"
     DYNAMO_TABLE_NAME: "MLModels" 
+    USAGE_TABLE_NAME: "ModelUsage"
     S3_BUCKET_NAME: "aws-cc-models" 
     
   vpc:
@@ -70,6 +71,15 @@ provider:
             - dynamodb:Scan # Scan added for testing purposes
           Resource: 
             - "arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:provider.environment.DYNAMO_TABLE_NAME}"
+        # DynamoDB Permissions for Usage Logging
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource: 
+            - "arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:provider.environment.USAGE_TABLE_NAME}"
+            - "arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:provider.environment.USAGE_TABLE_NAME}/index/*"
         # S3 Permissions for future model loading
         - Effect: Allow
           Action:
@@ -110,6 +120,15 @@ functions:
       - httpApi:
           path: /models/my-models
           method: OPTIONS
+      - httpApi:
+          path: /analytics/overview
+          method: OPTIONS
+      - httpApi:
+          path: /analytics/models
+          method: OPTIONS
+      - httpApi:
+          path: /analytics/earnings
+          method: OPTIONS
 
   testDynamo:
     handler: handler.testDynamo
@@ -130,4 +149,25 @@ functions:
     events:
       - httpApi:
           path: /models/my-models
+          method: GET
+
+  getAnalyticsOverview:
+    handler: handler.getAnalyticsOverview
+    events:
+      - httpApi:
+          path: /analytics/overview
+          method: GET
+
+  getModelAnalytics:
+    handler: handler.getModelAnalytics
+    events:
+      - httpApi:
+          path: /analytics/models
+          method: GET
+
+  getEarningsAnalytics:
+    handler: handler.getEarningsAnalytics
+    events:
+      - httpApi:
+          path: /analytics/earnings
           method: GET

@@ -345,40 +345,36 @@ router.post(
 );
 
 // Delete a model and all its versions
-router.delete(
-  "/:modelId",
-  authMiddleware.verifyToken,
-  async (req, res) => {
-    try {
-      const { modelId } = req.params;
+router.delete("/:modelId", authMiddleware.verifyToken, async (req, res) => {
+  try {
+    const { modelId } = req.params;
 
-      // Verify user owns the model
-      const existingVersions = await modelOperations.getModelVersions(
-        modelId,
-        req.user.userId
-      );
-      if (existingVersions.length === 0) {
-        return res
-          .status(404)
-          .json({ error: "Model not found or not owned by user" });
-      }
-
-      // Delete all versions of the model
-      await modelOperations.deleteModel(modelId, req.user.userId);
-      
-      res.json({
-        success: true,
-        message: "Model and all versions deleted successfully",
-      });
-    } catch (error) {
-      console.error("Error deleting model:", error);
-      res.status(500).json({
-        success: false,
-        error: "Failed to delete model",
-        message: error.message,
-      });
+    // Verify user owns the model
+    const existingVersions = await modelOperations.getModelVersions(
+      modelId,
+      req.user.userId
+    );
+    if (existingVersions.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "Model not found or not owned by user" });
     }
+
+    // Delete all versions of the model
+    await modelOperations.deleteModel(modelId, req.user.userId);
+
+    res.json({
+      success: true,
+      message: "Model and all versions deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting model:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete model",
+      message: error.message,
+    });
   }
-);
+});
 
 module.exports = router;

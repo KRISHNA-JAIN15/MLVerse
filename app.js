@@ -139,6 +139,7 @@ module.exports.db = db;
 const dbRoutes = require("./routes/dbRoutes");
 const authRoutes = require("./routes/authRoutes");
 const modelRoutes = require("./routes/modelRoutes");
+const analyticsRoutes = require("./routes/analyticsRoutes");
 const predictionRoutes = require("./routes/predictionRoutes");
 const userOperations = require("./models/userOperations");
 
@@ -151,6 +152,8 @@ const startServer = () => {
     app.use("/api", dbRoutes(db));
     app.use("/auth", authRoutes(userOps));
     app.use("/api/models", modelRoutes);
+    // Analytics routes (requires auth and db connection)
+    app.use("/api/analytics", analyticsRoutes(db));
     app.use("/api/predict", predictionRoutes(db));
 
     // Razorpay payment routes
