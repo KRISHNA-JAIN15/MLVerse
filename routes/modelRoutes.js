@@ -102,8 +102,24 @@ router.post(
       const { file } = req;
       const { modelId } = req.params;
 
-      if (!file) {
-        return res.status(400).json({ error: "No file uploaded" });
+      // Get update flags and new values from form data
+      const updatePricing = req.body.updatePricing === "true";
+      const updateRequestBody = req.body.updateRequestBody === "true";
+      const updatePklFile = req.body.updatePklFile === "true";
+
+      // Validate at least one option is selected
+      if (!updatePricing && !updateRequestBody && !updatePklFile) {
+        return res.status(400).json({
+          error:
+            "At least one option must be selected (pricing, request body, or PKL file)",
+        });
+      }
+
+      // If PKL file update is selected, ensure file is provided
+      if (updatePklFile && !file) {
+        return res
+          .status(400)
+          .json({ error: "PKL file is required when updating model file" });
       }
 
       // Verify user owns the model
@@ -122,47 +138,88 @@ router.post(
         (a, b) => b.versionNumber - a.versionNumber
       )[0];
 
-      // Upload file to S3 with version-specific path
-      const s3Key = `models/${req.user.userId}/${modelId}/${Date.now()}-${
-        file.originalname
-      }`;
-
-      const uploadToS3 = new Upload({
-        client: s3Client,
-        params: {
-          Bucket: BUCKET_NAME,
-          Key: s3Key,
-          Body: file.buffer,
-          ContentType: file.mimetype,
-        },
-      });
-
-      await uploadToS3.done();
-
-      // Create new version with existing metadata but new file
+      // Prepare version data - start with latest version data
       const versionData = {
         name: latestVersion.name,
         description: latestVersion.description,
         modelType: latestVersion.modelType,
         framework: latestVersion.framework,
-        fileFormat: file.originalname.match(/\.[^.]*$/)[0],
+        fileFormat: latestVersion.fileFormat,
         inputs: latestVersion.inputs,
         outputType: latestVersion.outputType,
-        s3Key,
+        s3Key: latestVersion.s3Key, // Default to previous version's file
         pricingType: latestVersion.pricingType,
         creditsPerCall: latestVersion.creditsPerCall,
       };
+
+      // Update pricing if selected
+      if (updatePricing) {
+        versionData.pricingType = req.body.pricingType || "free";
+        versionData.creditsPerCall = parseInt(req.body.creditsPerCall) || 0;
+      }
+
+      // Update request body schema if selected
+      if (updateRequestBody) {
+        try {
+          const newInputs = JSON.parse(req.body.inputs || "[]");
+          console.log("Updating request body schema:", {
+            updateRequestBody,
+            rawInputs: req.body.inputs,
+            parsedInputs: newInputs,
+          });
+          versionData.inputs = newInputs;
+        } catch (parseError) {
+          console.error("Error parsing inputs:", parseError);
+          return res.status(400).json({
+            error: "Invalid inputs format. Must be valid JSON array.",
+          });
+        }
+      }
+
+      // Update PKL file if selected
+      if (updatePklFile && file) {
+        // Upload file to S3 with version-specific path
+        const s3Key = `models/${req.user.userId}/${modelId}/${Date.now()}-${
+          file.originalname
+        }`;
+
+        const uploadToS3 = new Upload({
+          client: s3Client,
+          params: {
+            Bucket: BUCKET_NAME,
+            Key: s3Key,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+          },
+        });
+
+        await uploadToS3.done();
+
+        // Update file-related fields
+        versionData.s3Key = s3Key;
+        versionData.fileFormat = file.originalname.match(/\.[^.]*$/)[0];
+      }
 
       const result = await modelOperations.createModelVersion(
         modelId,
         req.user.userId,
         versionData
       );
+
+      // Prepare response with update summary
+      const updatedItems = [];
+      if (updatePricing) updatedItems.push("pricing");
+      if (updateRequestBody) updatedItems.push("request body schema");
+      if (updatePklFile) updatedItems.push("PKL model file");
+
       res.status(201).json({
         success: true,
-        message: "Model version uploaded successfully",
+        message: `Model version uploaded successfully. Updated: ${updatedItems.join(
+          ", "
+        )}`,
         version: result.version,
         model: result,
+        updatedComponents: updatedItems,
       });
     } catch (error) {
       console.error("Error uploading model version:", error);

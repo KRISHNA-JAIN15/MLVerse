@@ -70,6 +70,19 @@ const modelOperations = {
       // Create a unique record ID for this version (using original modelId + version suffix)
       const versionModelId = `${modelId}-${newVersion}`;
 
+      console.log("Creating model version:", {
+        modelId,
+        userId,
+        newVersion,
+        inputsFromVersionData: versionData.inputs,
+        inputsFromExisting: existingVersions[0].inputs,
+        inputsCondition: versionData.inputs !== undefined,
+        finalInputs:
+          versionData.inputs !== undefined
+            ? versionData.inputs
+            : existingVersions[0].inputs,
+      });
+
       const params = {
         TableName: TABLE_NAME,
         Item: {
@@ -84,7 +97,10 @@ const modelOperations = {
           modelType: versionData.modelType || existingVersions[0].modelType,
           framework: versionData.framework || existingVersions[0].framework,
           fileFormat: versionData.fileFormat || existingVersions[0].fileFormat,
-          inputs: versionData.inputs || existingVersions[0].inputs,
+          inputs:
+            versionData.inputs !== undefined
+              ? versionData.inputs
+              : existingVersions[0].inputs,
           outputType: versionData.outputType || existingVersions[0].outputType,
           s3Key: versionData.s3Key,
           pricingType:

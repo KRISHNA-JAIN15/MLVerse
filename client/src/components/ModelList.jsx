@@ -309,6 +309,10 @@ import {
   ListItem,
   ListItemText,
   ListItemButton,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
+  Stack,
 } from "@mui/material";
 import CodeIcon from "@mui/icons-material/Code";
 import HttpIcon from "@mui/icons-material/Http";
@@ -813,6 +817,18 @@ const ModelList = () => {
   const [versionFile, setVersionFile] = useState(null);
   const [versionUploading, setVersionUploading] = useState(false);
 
+  // Enhanced version update options
+  const [updatePricing, setUpdatePricing] = useState(false);
+  const [updateRequestBody, setUpdateRequestBody] = useState(false);
+  const [updatePklFile, setUpdatePklFile] = useState(false);
+  const [newPricingType, setNewPricingType] = useState("free");
+  const [newCreditsPerCall, setNewCreditsPerCall] = useState(0);
+  const [newRequestBody, setNewRequestBody] = useState([]);
+  const [newInputField, setNewInputField] = useState({
+    name: "",
+    type: "text",
+  });
+
   useEffect(() => {
     const fetchModels = async () => {
       // Retaining this check and dependency array as requested
@@ -891,6 +907,17 @@ const ModelList = () => {
     setSelectedModelForVersion(model);
     setVersionUploadModal(true);
     setVersionFile(null);
+
+    // Reset all update options
+    setUpdatePricing(false);
+    setUpdateRequestBody(false);
+    setUpdatePklFile(false);
+
+    // Initialize with current model values
+    setNewPricingType(model.pricingType || "free");
+    setNewCreditsPerCall(model.creditsPerCall || 0);
+    setNewRequestBody(model.inputs || []);
+    setNewInputField({ name: "", type: "text" });
   };
 
   const handleCloseVersionUpload = () => {
@@ -898,6 +925,13 @@ const ModelList = () => {
     setSelectedModelForVersion(null);
     setVersionFile(null);
     setVersionUploading(false);
+
+    // Reset all states
+    setUpdatePricing(false);
+    setUpdateRequestBody(false);
+    setUpdatePklFile(false);
+    setNewRequestBody([]);
+    setNewInputField({ name: "", type: "text" });
   };
 
   const handleVersionFileChange = (event) => {
@@ -911,15 +945,54 @@ const ModelList = () => {
   };
 
   const handleUploadVersion = async () => {
-    if (!versionFile || !selectedModelForVersion) {
-      alert("Please select a file");
+    if (!selectedModelForVersion) {
+      alert("No model selected");
+      return;
+    }
+
+    // Check if at least one option is selected
+    if (!updatePricing && !updateRequestBody && !updatePklFile) {
+      alert(
+        "Please select at least one option to update (pricing, request body, or PKL file)"
+      );
+      return;
+    }
+
+    // If PKL file update is selected, ensure file is provided
+    if (updatePklFile && !versionFile) {
+      alert("Please select a .pkl file when updating the model file");
       return;
     }
 
     setVersionUploading(true);
     try {
       const formData = new FormData();
-      formData.append("model", versionFile);
+
+      // Add file only if selected for update
+      if (updatePklFile && versionFile) {
+        formData.append("model", versionFile);
+      }
+
+      // Add pricing data only if selected for update
+      if (updatePricing) {
+        formData.append("pricingType", newPricingType);
+        formData.append("creditsPerCall", newCreditsPerCall.toString());
+      }
+
+      // Add request body data only if selected for update
+      if (updateRequestBody) {
+        console.log("Adding request body to form data:", {
+          updateRequestBody,
+          newRequestBody,
+          stringified: JSON.stringify(newRequestBody),
+        });
+        formData.append("inputs", JSON.stringify(newRequestBody));
+      }
+
+      // Add flags to indicate what should be updated
+      formData.append("updatePricing", updatePricing.toString());
+      formData.append("updateRequestBody", updateRequestBody.toString());
+      formData.append("updatePklFile", updatePklFile.toString());
 
       const response = await fetch(
         `${
@@ -940,7 +1013,16 @@ const ModelList = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        alert(`New version ${result.version} uploaded successfully!`);
+        const updatedItems = [];
+        if (updatePricing) updatedItems.push("pricing");
+        if (updateRequestBody) updatedItems.push("request body");
+        if (updatePklFile) updatedItems.push("PKL file");
+
+        alert(
+          `New version ${
+            result.version
+          } uploaded successfully!\nUpdated: ${updatedItems.join(", ")}`
+        );
         handleCloseVersionUpload();
         // Refresh the models list
         window.location.reload();
@@ -953,6 +1035,24 @@ const ModelList = () => {
     } finally {
       setVersionUploading(false);
     }
+  };
+
+  // Helper functions for request body management
+  const addInputField = () => {
+    if (newInputField.name.trim()) {
+      setNewRequestBody([...newRequestBody, { ...newInputField }]);
+      setNewInputField({ name: "", type: "text" });
+    }
+  };
+
+  const removeInputField = (index) => {
+    setNewRequestBody(newRequestBody.filter((_, i) => i !== index));
+  };
+
+  const updateInputField = (index, field, value) => {
+    const updated = [...newRequestBody];
+    updated[index][field] = value;
+    setNewRequestBody(updated);
   };
 
   const handleSetActiveVersion = async (modelId, version) => {
@@ -1129,39 +1229,242 @@ const ModelList = () => {
       <Dialog
         open={versionUploadModal}
         onClose={handleCloseVersionUpload}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Upload New Version</DialogTitle>
+        <DialogTitle>Create New Version - Selective Update</DialogTitle>
         <DialogContent>
           {selectedModelForVersion && (
-            <Typography
-              variant="subtitle2"
-              color="textSecondary"
-              sx={{ mb: 2 }}
-            >
-              Model: {selectedModelForVersion.name} (ID:{" "}
-              {selectedModelForVersion.modelId})
-            </Typography>
-          )}
-          <Box sx={{ mt: 2 }}>
-            <TextField
-              type="file"
-              fullWidth
-              label="Select .pkl file"
-              InputLabelProps={{ shrink: true }}
-              inputProps={{
-                accept: ".pkl",
-                onChange: handleVersionFileChange,
-              }}
-              helperText="Select a new .pkl file for this model version"
-            />
-            {versionFile && (
-              <Typography variant="body2" sx={{ mt: 1, color: "success.main" }}>
-                Selected: {versionFile.name}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                Model: {selectedModelForVersion.name}
               </Typography>
-            )}
-          </Box>
+              <Typography variant="body2" color="textSecondary">
+                ID: {selectedModelForVersion.modelId}
+              </Typography>
+              <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                Select which aspects you want to update. Unselected options will
+                use values from the previous version.
+              </Typography>
+            </Box>
+          )}
+
+          <FormGroup>
+            {/* Pricing Update Option */}
+            <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={updatePricing}
+                    onChange={(e) => setUpdatePricing(e.target.checked)}
+                  />
+                }
+                label={
+                  <Typography variant="subtitle2" fontWeight="bold">
+                    Update Pricing Model
+                  </Typography>
+                }
+              />
+
+              {updatePricing && (
+                <Box sx={{ mt: 2, ml: 3 }}>
+                  <Stack spacing={2}>
+                    <FormControl size="small" sx={{ minWidth: 200 }}>
+                      <InputLabel>Pricing Type</InputLabel>
+                      <Select
+                        value={newPricingType}
+                        onChange={(e) => setNewPricingType(e.target.value)}
+                        label="Pricing Type"
+                      >
+                        <MenuItem value="free">Free</MenuItem>
+                        <MenuItem value="paid">Paid</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    {newPricingType === "paid" && (
+                      <TextField
+                        label="Credits per API Call"
+                        type="number"
+                        size="small"
+                        value={newCreditsPerCall}
+                        onChange={(e) =>
+                          setNewCreditsPerCall(parseInt(e.target.value) || 0)
+                        }
+                        inputProps={{ min: 1 }}
+                        sx={{ maxWidth: 200 }}
+                      />
+                    )}
+                  </Stack>
+                </Box>
+              )}
+            </Paper>
+
+            {/* Request Body Update Option */}
+            <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={updateRequestBody}
+                    onChange={(e) => setUpdateRequestBody(e.target.checked)}
+                  />
+                }
+                label={
+                  <Typography variant="subtitle2" fontWeight="bold">
+                    Update Request Body Schema
+                  </Typography>
+                }
+              />
+
+              {updateRequestBody && (
+                <Box sx={{ mt: 2, ml: 3 }}>
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    gutterBottom
+                  >
+                    Current inputs: {newRequestBody.length}
+                  </Typography>
+
+                  {/* Current inputs list */}
+                  {newRequestBody.length > 0 && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography
+                        variant="subtitle3"
+                        fontWeight="bold"
+                        gutterBottom
+                      >
+                        Input Fields:
+                      </Typography>
+                      {newRequestBody.map((input, index) => (
+                        <Box
+                          key={index}
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                            mb: 1,
+                          }}
+                        >
+                          <TextField
+                            size="small"
+                            value={input.name}
+                            onChange={(e) =>
+                              updateInputField(index, "name", e.target.value)
+                            }
+                            placeholder="Field name"
+                            sx={{ flexGrow: 1 }}
+                          />
+                          <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <Select
+                              value={input.type}
+                              onChange={(e) =>
+                                updateInputField(index, "type", e.target.value)
+                              }
+                            >
+                              <MenuItem value="text">Text</MenuItem>
+                              <MenuItem value="numeric">Numeric</MenuItem>
+                              <MenuItem value="categorical">
+                                Categorical
+                              </MenuItem>
+                              <MenuItem value="array">Array</MenuItem>
+                            </Select>
+                          </FormControl>
+                          <Button
+                            size="small"
+                            color="error"
+                            onClick={() => removeInputField(index)}
+                          >
+                            Remove
+                          </Button>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+
+                  {/* Add new input */}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <TextField
+                      size="small"
+                      placeholder="New field name"
+                      value={newInputField.name}
+                      onChange={(e) =>
+                        setNewInputField({
+                          ...newInputField,
+                          name: e.target.value,
+                        })
+                      }
+                      sx={{ flexGrow: 1 }}
+                    />
+                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                      <Select
+                        value={newInputField.type}
+                        onChange={(e) =>
+                          setNewInputField({
+                            ...newInputField,
+                            type: e.target.value,
+                          })
+                        }
+                      >
+                        <MenuItem value="text">Text</MenuItem>
+                        <MenuItem value="numeric">Numeric</MenuItem>
+                        <MenuItem value="categorical">Categorical</MenuItem>
+                        <MenuItem value="array">Array</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={addInputField}
+                      disabled={!newInputField.name.trim()}
+                    >
+                      Add
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+            </Paper>
+
+            {/* PKL File Update Option */}
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={updatePklFile}
+                    onChange={(e) => setUpdatePklFile(e.target.checked)}
+                  />
+                }
+                label={
+                  <Typography variant="subtitle2" fontWeight="bold">
+                    Update PKL Model File
+                  </Typography>
+                }
+              />
+
+              {updatePklFile && (
+                <Box sx={{ mt: 2, ml: 3 }}>
+                  <TextField
+                    type="file"
+                    fullWidth
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    inputProps={{
+                      accept: ".pkl",
+                      onChange: handleVersionFileChange,
+                    }}
+                    helperText="Select a new .pkl file for this model version"
+                  />
+                  {versionFile && (
+                    <Typography
+                      variant="body2"
+                      sx={{ mt: 1, color: "success.main" }}
+                    >
+                      Selected: {versionFile.name}
+                    </Typography>
+                  )}
+                </Box>
+              )}
+            </Paper>
+          </FormGroup>
         </DialogContent>
         <DialogActions>
           <Button
@@ -1173,9 +1476,12 @@ const ModelList = () => {
           <Button
             onClick={handleUploadVersion}
             variant="contained"
-            disabled={!versionFile || versionUploading}
+            disabled={
+              (!updatePricing && !updateRequestBody && !updatePklFile) ||
+              versionUploading
+            }
           >
-            {versionUploading ? "Uploading..." : "Upload Version"}
+            {versionUploading ? "Creating Version..." : "Create New Version"}
           </Button>
         </DialogActions>
       </Dialog>
