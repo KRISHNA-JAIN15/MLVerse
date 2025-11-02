@@ -85,11 +85,21 @@ functions:
           path: /models/{modelId}/predict 
           method: POST
 
+  predictModelVersion:
+    handler: handler.predictModelVersion
+    events:
+      - httpApi:
+          path: /models/{modelId}/{version}/predict
+          method: POST
+
   corsHandler:
     handler: handler.corsHandler
     events:
       - httpApi:
           path: /models/{modelId}/predict
+          method: OPTIONS
+      - httpApi:
+          path: /models/{modelId}/{version}/predict
           method: OPTIONS
       - httpApi: 
           path: /test/dynamo

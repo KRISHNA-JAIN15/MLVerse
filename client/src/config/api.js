@@ -11,9 +11,14 @@ export const API_CONFIG = {
     MODELS: {
       UPLOAD: "/api/models/upload",
       // FIX: Updated to match backend route
-      LIST: "/models/list", // User's models only (requires auth)
-      MARKETPLACE: "/models/marketplace", // All models (public)
+      LIST: "/api/models/list", // User's models only (requires auth)
+      MARKETPLACE: "/api/models/marketplace", // All models (public)
       GET: (id) => `/api/models/${id}`,
+      // Version management endpoints
+      UPLOAD_VERSION: "/api/models/upload-version/:modelId",
+      GET_VERSIONS: "/api/models/versions/:modelId",
+      SET_ACTIVE: "/api/models/set-active/:modelId/:version",
+      DELETE: "/api/models/:modelId",
     },
     REGENERATE_API_KEY: "/auth/regenerate-api-key",
     RAZORPAY: {

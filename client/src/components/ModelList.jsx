@@ -299,12 +299,25 @@ import {
   Chip,
   Divider,
   IconButton,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Collapse,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemButton,
 } from "@mui/material";
 import CodeIcon from "@mui/icons-material/Code";
 import HttpIcon from "@mui/icons-material/Http";
 import PaidIcon from "@mui/icons-material/Paid";
 import FreeBreakfastIcon from "@mui/icons-material/FreeBreakfast";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { API_CONFIG } from "../config/api";
 // import api from "../utils/auth";
 import { useAuth } from "../context/useAuth";
@@ -340,16 +353,27 @@ const generateRequestBody = (inputs) => {
 };
 
 // Utility function to generate the prediction endpoint URL
-const generateEndpointUrl = (modelId) => {
-  // Use the local prediction endpoint we created
+const generateEndpointUrl = (modelId, version = null) => {
+  if (version) {
+    return `${API_CONFIG.AWS_API_ENDPOINT}/models/${modelId}/${version}/predict`;
+  }
   return `${API_CONFIG.AWS_API_ENDPOINT}/models/${modelId}/predict`;
 };
 
 // --- Model Card Component ---
-const ModelCard = ({ model }) => {
+const ModelCard = ({ model, onOpenVersionUpload, onSetActiveVersion, onDeleteModel }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState(null); // 'body' or 'endpoint'
   const [copied, setCopied] = useState(false);
+
+  // Delete confirmation states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  // Version management states
+  const [allVersions, setAllVersions] = useState([]);
+  const [showVersions, setShowVersions] = useState(false);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState(model.version || "v1");
 
   // Use the correct field names from backend
   const isPaid = model.pricingType === "paid";
@@ -368,6 +392,76 @@ const ModelCard = ({ model }) => {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const handleDeleteModel = () => {
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    onDeleteModel(model);
+    setDeleteDialogOpen(false);
+  };
+
+  // Version management functions
+  const { user } = useAuth();
+
+  const fetchAllVersions = async () => {
+    if (loadingVersions) return;
+
+    setLoadingVersions(true);
+    try {
+      // Extract base model ID (remove version suffix if present)
+      const baseModelId = model.baseModelId || model.modelId.split("-v")[0];
+
+      const response = await fetch(
+        `${
+          API_CONFIG.BASE_URL
+        }${API_CONFIG.ENDPOINTS.MODELS.GET_VERSIONS.replace(
+          ":modelId",
+          baseModelId
+        )}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${user?.token || ""}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const result = await response.json();
+      if (response.ok && result.versions) {
+        // Sort versions by version number
+        const sortedVersions = result.versions.sort(
+          (a, b) => a.versionNumber - b.versionNumber
+        );
+        setAllVersions(sortedVersions);
+      } else {
+        console.error("Failed to fetch versions:", result.error);
+      }
+    } catch (error) {
+      console.error("Error fetching versions:", error);
+    } finally {
+      setLoadingVersions(false);
+    }
+  };
+
+  const handleVersionChange = (version) => {
+    setSelectedVersion(version);
+    // Find the selected version data
+    const versionData = allVersions.find((v) => v.version === version);
+    if (versionData) {
+      // Update the modal content to show the selected version's endpoint
+      // This will be used when showing endpoints for specific versions
+    }
+  };
+
+  const toggleVersionsView = () => {
+    if (!showVersions && allVersions.length === 0) {
+      fetchAllVersions();
+    }
+    setShowVersions(!showVersions);
+  };
+
   const modalContent =
     modalType === "body"
       ? {
@@ -375,8 +469,11 @@ const ModelCard = ({ model }) => {
           content: generateRequestBody(model.inputs),
         }
       : {
-          title: "Prediction Endpoint URL",
-          content: generateEndpointUrl(model.modelId),
+          title: `Prediction Endpoint URL (${selectedVersion})`,
+          content: generateEndpointUrl(
+            model.baseModelId || model.modelId.split("-v")[0],
+            selectedVersion
+          ),
         };
 
   return (
@@ -411,6 +508,116 @@ const ModelCard = ({ model }) => {
       <Typography variant="body2" color="textSecondary" gutterBottom>
         **ID:** {model.modelId}
       </Typography>
+
+      {/* Version Information */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+        <Chip
+          label={`${model.version || "v1"} ${model.isActive ? "(Active)" : ""}`}
+          size="small"
+          color={model.isActive ? "primary" : "default"}
+          variant={model.isActive ? "filled" : "outlined"}
+        />
+        <Typography variant="caption" color="textSecondary">
+          Version {model.versionNumber || 1}
+        </Typography>
+        <IconButton
+          size="small"
+          onClick={toggleVersionsView}
+          title="View all versions"
+        >
+          {showVersions ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        </IconButton>
+      </Box>
+
+      {/* Version Management Panel */}
+      <Collapse in={showVersions}>
+        <Paper variant="outlined" sx={{ p: 2, mb: 1, bgcolor: "grey.50" }}>
+          <Typography variant="subtitle2" gutterBottom>
+            All Versions
+          </Typography>
+
+          {loadingVersions ? (
+            <CircularProgress size={24} />
+          ) : allVersions.length > 0 ? (
+            <Box>
+              <FormControl size="small" fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Select Version</InputLabel>
+                <Select
+                  value={selectedVersion}
+                  onChange={(e) => handleVersionChange(e.target.value)}
+                  label="Select Version"
+                >
+                  {allVersions.map((version) => (
+                    <MenuItem key={version.version} value={version.version}>
+                      {version.version} {version.isActive ? "(Active)" : ""} - v
+                      {version.versionNumber}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <List dense>
+                {allVersions.map((version) => (
+                  <ListItem key={version.version} disablePadding>
+                    <ListItemButton
+                      selected={selectedVersion === version.version}
+                      onClick={() => handleVersionChange(version.version)}
+                    >
+                      <ListItemText
+                        primary={
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                            }}
+                          >
+                            <Chip
+                              label={version.version}
+                              size="small"
+                              color={version.isActive ? "primary" : "default"}
+                              variant={version.isActive ? "filled" : "outlined"}
+                            />
+                            {version.isActive && (
+                              <Chip
+                                label="Active"
+                                size="small"
+                                color="success"
+                              />
+                            )}
+                          </Box>
+                        }
+                        secondary={`Created: ${new Date(
+                          version.createdAt
+                        ).toLocaleDateString()}`}
+                      />
+                      {!version.isActive && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSetActiveVersion(
+                              model.baseModelId || model.modelId.split("-v")[0],
+                              version.version
+                            );
+                          }}
+                        >
+                          Set Active
+                        </Button>
+                      )}
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          ) : (
+            <Typography variant="body2" color="textSecondary">
+              No versions found. Click "New Version" to create one.
+            </Typography>
+          )}
+        </Paper>
+      </Collapse>
 
       {/* Metadata */}
       <Typography variant="body2">{model.description}</Typography>
@@ -463,6 +670,39 @@ const ModelCard = ({ model }) => {
             </>
           )}
         </Box>
+      </Box>
+
+      {/* Version Management - Only for model owner */}
+      <Box sx={{ mt: 1, display: "flex", gap: 1, alignItems: "center" }}>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={() => onOpenVersionUpload(model)}
+          sx={{ fontSize: "0.75rem", py: 0.5 }}
+        >
+          New Version
+        </Button>
+        {!model.isActive && (
+          <Button
+            variant="contained"
+            size="small"
+            color="success"
+            onClick={() => onSetActiveVersion(model.modelId, model.version)}
+            sx={{ fontSize: "0.75rem", py: 0.5 }}
+          >
+            Set Active
+          </Button>
+        )}
+        <Button
+          variant="outlined"
+          size="small"
+          color="error"
+          startIcon={<DeleteIcon />}
+          onClick={() => handleDeleteModel()}
+          sx={{ fontSize: "0.75rem", py: 0.5 }}
+        >
+          Delete
+        </Button>
       </Box>
 
       {/* Buttons */}
@@ -527,6 +767,29 @@ const ModelCard = ({ model }) => {
           <Button onClick={() => setModalOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        aria-labelledby="delete-dialog-title"
+      >
+        <DialogTitle id="delete-dialog-title">
+          Delete Model "{model.name}"?
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this model? This action cannot be undone.
+            All versions of this model will be permanently deleted.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={confirmDelete} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 };
@@ -538,6 +801,12 @@ const ModelList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [userCredits, setUserCredits] = useState(0);
+
+  // Version upload states
+  const [versionUploadModal, setVersionUploadModal] = useState(false);
+  const [selectedModelForVersion, setSelectedModelForVersion] = useState(null);
+  const [versionFile, setVersionFile] = useState(null);
+  const [versionUploading, setVersionUploading] = useState(false);
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -551,7 +820,7 @@ const ModelList = () => {
       setLoading(true);
 
       try {
-        // Fetch user's models (requires authentication)
+        // Fetch user's models from main backend (requires authentication)
         const modelsResponse = await fetch(
           `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.MODELS.LIST}`,
           {
@@ -577,7 +846,15 @@ const ModelList = () => {
 
         // Handle models response
         if (!modelsResponse.ok) {
-          const errorData = await modelsResponse.json();
+          const errorData = await modelsResponse.json().catch(() => ({}));
+          console.error("Models API Error:", {
+            status: modelsResponse.status,
+            statusText: modelsResponse.statusText,
+            error: errorData,
+            user: user
+              ? { id: user.id, token: user.token ? "present" : "missing" }
+              : "no user",
+          });
           throw new Error(
             errorData.error || `HTTP Error! Status: ${modelsResponse.status}`
           );
@@ -603,6 +880,138 @@ const ModelList = () => {
 
     fetchModels();
   }, [user]);
+
+  // Version upload functions
+  const handleOpenVersionUpload = (model) => {
+    setSelectedModelForVersion(model);
+    setVersionUploadModal(true);
+    setVersionFile(null);
+  };
+
+  const handleCloseVersionUpload = () => {
+    setVersionUploadModal(false);
+    setSelectedModelForVersion(null);
+    setVersionFile(null);
+    setVersionUploading(false);
+  };
+
+  const handleVersionFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file && file.name.endsWith(".pkl")) {
+      setVersionFile(file);
+    } else {
+      alert("Please select a valid .pkl file");
+      event.target.value = "";
+    }
+  };
+
+  const handleUploadVersion = async () => {
+    if (!versionFile || !selectedModelForVersion) {
+      alert("Please select a file");
+      return;
+    }
+
+    setVersionUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("model", versionFile);
+
+      const response = await fetch(
+        `${
+          API_CONFIG.BASE_URL
+        }${API_CONFIG.ENDPOINTS.MODELS.UPLOAD_VERSION.replace(
+          ":modelId",
+          selectedModelForVersion.modelId
+        )}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${user?.token || ""}`,
+          },
+          body: formData,
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert(`New version ${result.version} uploaded successfully!`);
+        handleCloseVersionUpload();
+        // Refresh the models list
+        window.location.reload();
+      } else {
+        throw new Error(result.message || "Upload failed");
+      }
+    } catch (err) {
+      console.error("Version upload error:", err);
+      alert(`Upload failed: ${err.message}`);
+    } finally {
+      setVersionUploading(false);
+    }
+  };
+
+  const handleSetActiveVersion = async (modelId, version) => {
+    try {
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.MODELS.SET_ACTIVE.replace(
+          ":modelId",
+          modelId
+        ).replace(":version", version)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${user?.token || ""}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert(`Version ${version} set as active!`);
+        // Refresh the models list
+        window.location.reload();
+      } else {
+        throw new Error(result.message || "Failed to set active version");
+      }
+    } catch (err) {
+      console.error("Set active version error:", err);
+      alert(`Failed to set active version: ${err.message}`);
+    }
+  };
+
+  const handleDeleteModel = async (model) => {
+    try {
+      const baseModelId = model.baseModelId || model.modelId.split("-v")[0];
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.MODELS.DELETE.replace(
+          ":modelId",
+          baseModelId
+        )}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${user?.token || ""}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert(`Model "${model.name}" deleted successfully!`);
+        // Refresh the models list
+        window.location.reload();
+      } else {
+        throw new Error(result.message || "Failed to delete model");
+      }
+    } catch (err) {
+      console.error("Delete model error:", err);
+      alert(`Failed to delete model: ${err.message}`);
+    }
+  };
 
   if (loading) {
     return (
@@ -699,12 +1108,72 @@ const ModelList = () => {
           <Grid container spacing={3}>
             {models.map((model) => (
               <Grid item key={model.modelId} xs={12} sm={6} md={4}>
-                <ModelCard model={model} />
+                <ModelCard
+                  model={model}
+                  onOpenVersionUpload={handleOpenVersionUpload}
+                  onSetActiveVersion={handleSetActiveVersion}
+                  onDeleteModel={handleDeleteModel}
+                />
               </Grid>
             ))}
           </Grid>
         </>
       )}
+
+      {/* Version Upload Modal */}
+      <Dialog
+        open={versionUploadModal}
+        onClose={handleCloseVersionUpload}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Upload New Version</DialogTitle>
+        <DialogContent>
+          {selectedModelForVersion && (
+            <Typography
+              variant="subtitle2"
+              color="textSecondary"
+              sx={{ mb: 2 }}
+            >
+              Model: {selectedModelForVersion.name} (ID:{" "}
+              {selectedModelForVersion.modelId})
+            </Typography>
+          )}
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              type="file"
+              fullWidth
+              label="Select .pkl file"
+              InputLabelProps={{ shrink: true }}
+              inputProps={{
+                accept: ".pkl",
+                onChange: handleVersionFileChange,
+              }}
+              helperText="Select a new .pkl file for this model version"
+            />
+            {versionFile && (
+              <Typography variant="body2" sx={{ mt: 1, color: "success.main" }}>
+                Selected: {versionFile.name}
+              </Typography>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handleCloseVersionUpload}
+            disabled={versionUploading}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUploadVersion}
+            variant="contained"
+            disabled={!versionFile || versionUploading}
+          >
+            {versionUploading ? "Uploading..." : "Upload Version"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

@@ -60,8 +60,8 @@ const generateRequestBody = (inputs) => {
 };
 
 // Utility function to generate the prediction endpoint URL
-const generateEndpointUrl = (modelId) => {
-  return `${API_CONFIG.BASE_URL}/api/predict/${modelId}/predict`;
+const generateEndpointUrl = (modelId, version = "v1") => {
+  return `${API_CONFIG.AWS_API_ENDPOINT}/models/${modelId}/${version}/predict`;
 };
 
 // --- Marketplace Model Card Component ---
@@ -94,7 +94,7 @@ const MarketplaceModelCard = ({ model }) => {
         }
       : {
           title: "Prediction Endpoint URL",
-          content: generateEndpointUrl(model.modelId),
+          content: generateEndpointUrl(model.modelId, model.version || "v1"),
         };
 
   return (
@@ -131,6 +131,19 @@ const MarketplaceModelCard = ({ model }) => {
       <Typography variant="body2" color="textSecondary" gutterBottom>
         **ID:** {model.modelId}
       </Typography>
+
+      {/* Version Information */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+        <Chip
+          label={`${model.version || "v1"} ${model.isActive ? "(Active)" : ""}`}
+          size="small"
+          color="primary"
+          variant="outlined"
+        />
+        <Typography variant="caption" color="textSecondary">
+          Version {model.versionNumber || 1}
+        </Typography>
+      </Box>
 
       {/* Metadata */}
       <Typography variant="body2">{model.description}</Typography>
@@ -267,8 +280,8 @@ const CommunityHub = () => {
       setLoading(true);
 
       try {
-        // Fetch all models from the marketplace (Main Backend)
-        const url = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.MODELS.MARKETPLACE}`;
+        // Fetch all models from the marketplace (AWS Lambda)
+        const url = `${API_CONFIG.AWS_API_ENDPOINT}/models/list`;
 
         const fetchResponse = await fetch(url, {
           method: "GET",

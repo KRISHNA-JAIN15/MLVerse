@@ -92,6 +92,168 @@ router.post(
   }
 );
 
+// Upload a new version of an existing model
+router.post(
+  "/upload-version/:modelId",
+  authMiddleware.verifyToken,
+  upload.single("model"),
+  async (req, res) => {
+    try {
+      const { file } = req;
+      const { modelId } = req.params;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Verify user owns the model
+      const existingVersions = await modelOperations.getModelVersions(
+        modelId,
+        req.user.userId
+      );
+      if (existingVersions.length === 0) {
+        return res
+          .status(404)
+          .json({ error: "Model not found or not owned by user" });
+      }
+
+      // Get the latest version to copy metadata from
+      const latestVersion = existingVersions.sort(
+        (a, b) => b.versionNumber - a.versionNumber
+      )[0];
+
+      // Upload file to S3 with version-specific path
+      const s3Key = `models/${req.user.userId}/${modelId}/${Date.now()}-${
+        file.originalname
+      }`;
+
+      const uploadToS3 = new Upload({
+        client: s3Client,
+        params: {
+          Bucket: BUCKET_NAME,
+          Key: s3Key,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        },
+      });
+
+      await uploadToS3.done();
+
+      // Create new version with existing metadata but new file
+      const versionData = {
+        name: latestVersion.name,
+        description: latestVersion.description,
+        modelType: latestVersion.modelType,
+        framework: latestVersion.framework,
+        fileFormat: file.originalname.match(/\.[^.]*$/)[0],
+        inputs: latestVersion.inputs,
+        outputType: latestVersion.outputType,
+        s3Key,
+        pricingType: latestVersion.pricingType,
+        creditsPerCall: latestVersion.creditsPerCall,
+      };
+
+      const result = await modelOperations.createModelVersion(
+        modelId,
+        req.user.userId,
+        versionData
+      );
+      res.status(201).json({
+        success: true,
+        message: "Model version uploaded successfully",
+        version: result.version,
+        model: result,
+      });
+    } catch (error) {
+      console.error("Error uploading model version:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to upload model version",
+        message: error.message,
+      });
+    }
+  }
+);
+
+// Get all versions of a model
+router.get(
+  "/versions/:modelId",
+  authMiddleware.verifyToken,
+  async (req, res) => {
+    try {
+      const { modelId } = req.params;
+      const versions = await modelOperations.getModelVersions(
+        modelId,
+        req.user.userId
+      );
+      res.json({ versions });
+    } catch (error) {
+      console.error("Error getting model versions:", error);
+      res.status(500).json({ error: "Failed to get model versions" });
+    }
+  }
+);
+
+// Get a specific version of a model
+router.get(
+  "/version/:modelId/:version",
+  authMiddleware.verifyToken,
+  async (req, res) => {
+    try {
+      const { modelId, version } = req.params;
+      const model = await modelOperations.getModelVersion(
+        modelId,
+        version,
+        req.user.userId
+      );
+      if (!model) {
+        return res.status(404).json({ error: "Model version not found" });
+      }
+      res.json({ model });
+    } catch (error) {
+      console.error("Error getting model version:", error);
+      res.status(500).json({ error: "Failed to get model version" });
+    }
+  }
+);
+
+// Set active version
+router.post(
+  "/set-active/:modelId/:version",
+  authMiddleware.verifyToken,
+  async (req, res) => {
+    try {
+      const { modelId, version } = req.params;
+
+      // Verify user owns the model and version exists
+      const modelVersion = await modelOperations.getModelVersion(
+        modelId,
+        version,
+        req.user.userId
+      );
+      if (!modelVersion) {
+        return res.status(404).json({
+          success: false,
+          error: "Model version not found",
+        });
+      }
+
+      await modelOperations.setActiveVersion(modelId, req.user.userId, version);
+      res.json({
+        success: true,
+        message: "Active version updated successfully",
+      });
+    } catch (error) {
+      console.error("Error setting active version:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to set active version",
+        message: error.message,
+      });
+    }
+  }
+);
+
 router.get("/list", authMiddleware.verifyToken, async (req, res) => {
   try {
     const models = await modelOperations.getModelsByUser(req.user.userId);
@@ -178,6 +340,43 @@ router.post(
     } catch (error) {
       console.error("Error generating API endpoint:", error);
       res.status(500).json({ error: "Failed to generate API endpoint" });
+    }
+  }
+);
+
+// Delete a model and all its versions
+router.delete(
+  "/:modelId",
+  authMiddleware.verifyToken,
+  async (req, res) => {
+    try {
+      const { modelId } = req.params;
+
+      // Verify user owns the model
+      const existingVersions = await modelOperations.getModelVersions(
+        modelId,
+        req.user.userId
+      );
+      if (existingVersions.length === 0) {
+        return res
+          .status(404)
+          .json({ error: "Model not found or not owned by user" });
+      }
+
+      // Delete all versions of the model
+      await modelOperations.deleteModel(modelId, req.user.userId);
+      
+      res.json({
+        success: true,
+        message: "Model and all versions deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting model:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to delete model",
+        message: error.message,
+      });
     }
   }
 );

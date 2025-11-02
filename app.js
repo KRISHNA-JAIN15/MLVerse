@@ -19,7 +19,7 @@ app.use(express.json());
 app.use(
   cors({
     origin: "http://localhost:5173", // Vite's default port
-    methods: ["GET", "POST", "PUT", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Api-Key"],
     credentials: true,
   })
