@@ -210,7 +210,7 @@ const Home = () => {
                 <Typography>
                   Transform your models into production-ready APIs
                   automatically. Get secure endpoints with authentication and
-                  detailed documentation.
+                  detailed documentation in no time.
                 </Typography>
               </CardContent>
             </Card>
@@ -226,7 +226,8 @@ const Home = () => {
                 </Typography>
                 <Typography>
                   Set pricing for your models and earn credits when others use
-                  them. Build a passive income stream from your ML expertise.
+                  them. Build a passive income stream from your ML expertise
+                  with monitoring/analysis.
                 </Typography>
               </CardContent>
             </Card>
@@ -242,37 +243,8 @@ const Home = () => {
                 </Typography>
                 <Typography>
                   Discover and use models from the community. Find the perfect
-                  model for your project from our growing marketplace.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card sx={{ height: "100%", textAlign: "center", p: 2 }}>
-              <CardContent>
-                <SecurityIcon
-                  sx={{ fontSize: 60, color: "info.main", mb: 2 }}
-                />
-                <Typography variant="h5" gutterBottom fontWeight="bold">
-                  Secure & Reliable
-                </Typography>
-                <Typography>
-                  Enterprise-grade security with API key authentication, rate
-                  limiting, and reliable cloud infrastructure.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card sx={{ height: "100%", textAlign: "center", p: 2 }}>
-              <CardContent>
-                <SpeedIcon sx={{ fontSize: 60, color: "error.main", mb: 2 }} />
-                <Typography variant="h5" gutterBottom fontWeight="bold">
-                  Lightning Fast
-                </Typography>
-                <Typography>
-                  Optimized infrastructure for fast model inference. Get
-                  predictions in milliseconds with our scalable architecture.
+                  model for your project from our growing marketplace and make
+                  your projects easily.
                 </Typography>
               </CardContent>
             </Card>

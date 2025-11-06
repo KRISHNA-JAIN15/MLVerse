@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import {
   Container,
@@ -15,15 +17,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Card,
   CardContent,
-  Divider,
   Chip,
-  LinearProgress,
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -298,10 +294,12 @@ const Dashboard = () => {
                 display="flex"
                 justifyContent="space-between"
                 alignItems="center"
+                flexWrap="wrap"
+                gap={3}
               >
-                <Box>
+                <Box sx={{ flex: 1, minWidth: "250px" }}>
                   <Typography variant="h4" fontWeight="bold" gutterBottom>
-                    Welcome back, {user?.name}! 👋
+                    Welcome back, {user?.name}! 👋 Say hello to MLVerse
                   </Typography>
                   <Typography variant="h6" sx={{ opacity: 0.9 }}>
                     {user?.email}
@@ -324,19 +322,22 @@ const Dashboard = () => {
                     />
                   </Box>
                 </Box>
-                <Button
-                  variant="contained"
-                  size="large"
-                  sx={{
-                    bgcolor: "rgba(255,255,255,0.2)",
-                    color: "white",
-                    "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
-                  }}
-                  startIcon={<CreditCardIcon />}
-                  onClick={() => setCreditDialogOpen(true)}
-                >
-                  Buy Credits
-                </Button>
+                <Box>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    sx={{
+                      bgcolor: "rgba(255,255,255,0.2)",
+                      color: "white",
+                      "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
+                      whiteSpace: "nowrap",
+                    }}
+                    startIcon={<CreditCardIcon />}
+                    onClick={() => setCreditDialogOpen(true)}
+                  >
+                    Buy Credits
+                  </Button>
+                </Box>
               </Box>
             </Paper>
           </Grid>
@@ -347,265 +348,280 @@ const Dashboard = () => {
               Quick Actions
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card
-                  sx={{
-                    cursor: "pointer",
-                    transition: "transform 0.2s",
-                    "&:hover": { transform: "translateY(-4px)" },
-                  }}
-                  onClick={() => navigate("/add-model")}
-                >
-                  <CardContent sx={{ textAlign: "center", p: 3 }}>
-                    <AddCircleIcon
-                      sx={{ fontSize: 48, color: "primary.main", mb: 1 }}
-                    />
-                    <Typography variant="h6" fontWeight="bold">
-                      Add Model
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Upload a new ML model
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card
-                  sx={{
-                    cursor: "pointer",
-                    transition: "transform 0.2s",
-                    "&:hover": { transform: "translateY(-4px)" },
-                  }}
-                  onClick={() => navigate("/models")}
-                >
-                  <CardContent sx={{ textAlign: "center", p: 3 }}>
-                    <ViewListIcon
-                      sx={{ fontSize: 48, color: "success.main", mb: 1 }}
-                    />
-                    <Typography variant="h6" fontWeight="bold">
-                      My Models
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      View your deployed models
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card
-                  sx={{
-                    cursor: "pointer",
-                    transition: "transform 0.2s",
-                    "&:hover": { transform: "translateY(-4px)" },
-                  }}
-                  onClick={() => navigate("/community")}
-                >
-                  <CardContent sx={{ textAlign: "center", p: 3 }}>
-                    <StorefrontIcon
-                      sx={{ fontSize: 48, color: "secondary.main", mb: 1 }}
-                    />
-                    <Typography variant="h6" fontWeight="bold">
-                      Marketplace
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Browse community models
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card
-                  sx={{ textAlign: "center", p: 3, cursor: "pointer" }}
-                  onClick={() => navigate("/analytics")}
-                >
-                  <CardContent>
-                    <TrendingUpIcon
-                      sx={{ fontSize: 48, color: "warning.main", mb: 1 }}
-                    />
-                    <Typography variant="h6" fontWeight="bold">
-                      Analytics
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      View usage, earnings and model performance
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
+              {[
+                {
+                  icon: AddCircleIcon,
+                  color: "primary.main",
+                  title: "Add Model",
+                  desc: "Upload a new ML model",
+                  onClick: () => navigate("/add-model"),
+                },
+                {
+                  icon: ViewListIcon,
+                  color: "success.main",
+                  title: "My Models",
+                  desc: "View your deployed models and API",
+                  onClick: () => navigate("/models"),
+                },
+                {
+                  icon: StorefrontIcon,
+                  color: "secondary.main",
+                  title: "Marketplace",
+                  desc: "Browse community models/use them",
+                  onClick: () => navigate("/community"),
+                },
+                {
+                  icon: TrendingUpIcon,
+                  color: "warning.main",
+                  title: "Analytics",
+                  desc: "View usage, earnings and model performance",
+                  onClick: () => navigate("/analytics"),
+                },
+              ].map((action, index) => {
+                const IconComponent = action.icon;
+                return (
+                  <Grid item xs={12} sm={6} md={3} key={index}>
+                    <Card
+                      sx={{
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        "&:hover": {
+                          transform: "translateY(-8px)",
+                          boxShadow: 6,
+                        },
+                      }}
+                      onClick={action.onClick}
+                    >
+                      <CardContent
+                        sx={{
+                          textAlign: "center",
+                          p: 3,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flex: 1,
+                        }}
+                      >
+                        <IconComponent
+                          sx={{
+                            fontSize: 48,
+                            color: action.color,
+                            mb: 2,
+                          }}
+                        />
+                        <Typography
+                          variant="h6"
+                          fontWeight="bold"
+                          sx={{ mb: 1 }}
+                        >
+                          {action.title}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          color="textSecondary"
+                          sx={{ lineHeight: 1.4 }}
+                        >
+                          {action.desc}
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              })}
             </Grid>
           </Grid>
 
-          {/* API Key Section */}
-          <Grid item xs={12} lg={6}>
-            <Paper sx={{ p: 3, height: "100%" }}>
-              <Box display="flex" alignItems="center" gap={1} mb={2}>
-                <SecurityIcon color="primary" />
-                <Typography variant="h6" fontWeight="bold">
-                  API Configuration
-                </Typography>
-              </Box>
+          {/* API Key and Profile Section */}
+          <Grid item xs={12}>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: { xs: "column", md: "row" },
+                gap: 3,
+              }}
+            >
+              {/* API Key Section */}
+              <Box sx={{ flex: 1 }}>
+                <Paper sx={{ p: 3, height: "100%" }}>
+                  <Box display="flex" alignItems="center" gap={1} mb={2}>
+                    <SecurityIcon color="primary" />
+                    <Typography variant="h6" fontWeight="bold">
+                      API Configuration
+                    </Typography>
+                  </Box>
 
-              <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-                Use this API key to authenticate your requests to the MLVerse
-                API
-              </Typography>
-
-              <TextField
-                fullWidth
-                variant="outlined"
-                type="text"
-                value={user?.api_key || "No API key generated"}
-                InputProps={{
-                  readOnly: true,
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={handleCopyApiKey}
-                        edge="end"
-                        title={apiKeyCopied ? "Copied!" : "Copy API Key"}
-                      >
-                        <ContentCopyIcon
-                          color={apiKeyCopied ? "success" : "default"}
-                        />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ mb: 2 }}
-              />
-
-              <Button
-                variant="outlined"
-                fullWidth
-                onClick={handleRegenerateApiKey}
-                disabled={apiKeyLoading}
-                startIcon={
-                  apiKeyLoading ? (
-                    <CircularProgress size={20} />
-                  ) : (
-                    <RefreshIcon />
-                  )
-                }
-              >
-                Regenerate API Key
-              </Button>
-
-              {apiKeyCopied && (
-                <Alert severity="success" sx={{ mt: 2 }}>
-                  API Key copied to clipboard!
-                </Alert>
-              )}
-            </Paper>
-          </Grid>
-
-          {/* Profile Section */}
-          <Grid item xs={12} lg={6}>
-            <Paper sx={{ p: 3, height: "100%" }}>
-              <Box
-                display="flex"
-                alignItems="center"
-                justify="space-between"
-                mb={2}
-              >
-                <Box display="flex" alignItems="center" gap={1}>
-                  <AccountCircleIcon color="primary" />
-                  <Typography variant="h6" fontWeight="bold">
-                    Profile Information
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    sx={{ mb: 2 }}
+                  >
+                    Use this API key to authenticate your requests to the
+                    MLVerse API
                   </Typography>
-                </Box>
-                {!editing && (
+
+                  <TextField
+                    fullWidth
+                    variant="outlined"
+                    type="text"
+                    value={user?.api_key || "No API key generated"}
+                    InputProps={{
+                      readOnly: true,
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={handleCopyApiKey}
+                            edge="end"
+                            title={apiKeyCopied ? "Copied!" : "Copy API Key"}
+                          >
+                            <ContentCopyIcon
+                              color={apiKeyCopied ? "success" : "default"}
+                            />
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{ mb: 2 }}
+                  />
+
                   <Button
                     variant="outlined"
-                    size="small"
-                    onClick={() => {
-                      setEditing(true);
-                      setFormData({
-                        name: user?.name || "",
-                        email: user?.email || "",
-                        phone: user?.phone || "",
-                      });
-                    }}
-                  >
-                    Edit Profile
-                  </Button>
-                )}
-              </Box>
-
-              {error && (
-                <Alert severity="error" sx={{ mb: 2 }}>
-                  {error}
-                </Alert>
-              )}
-
-              {success && (
-                <Alert severity="success" sx={{ mb: 2 }}>
-                  {success}
-                </Alert>
-              )}
-
-              <Box component="form" onSubmit={handleSubmit}>
-                <TextField
-                  margin="normal"
-                  fullWidth
-                  label="Name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  disabled={!editing}
-                  variant={editing ? "outlined" : "filled"}
-                />
-                <TextField
-                  margin="normal"
-                  fullWidth
-                  label="Email"
-                  name="email"
-                  value={formData.email}
-                  disabled={true}
-                  variant="filled"
-                  helperText="Email cannot be changed"
-                />
-                <TextField
-                  margin="normal"
-                  fullWidth
-                  label="Phone"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  disabled={!editing}
-                  variant={editing ? "outlined" : "filled"}
-                />
-
-                {editing && (
-                  <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      disabled={loading}
-                      sx={{ flex: 1 }}
-                    >
-                      {loading ? (
-                        <CircularProgress size={24} />
+                    fullWidth
+                    onClick={handleRegenerateApiKey}
+                    disabled={apiKeyLoading}
+                    startIcon={
+                      apiKeyLoading ? (
+                        <CircularProgress size={20} />
                       ) : (
-                        "Save Changes"
-                      )}
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      onClick={() => {
-                        setEditing(false);
-                        setFormData({
-                          name: user?.name || "",
-                          email: user?.email || "",
-                          phone: user?.phone || "",
-                        });
-                      }}
-                      sx={{ flex: 1 }}
-                    >
-                      Cancel
-                    </Button>
-                  </Box>
-                )}
+                        <RefreshIcon />
+                      )
+                    }
+                  >
+                    Regenerate API Key
+                  </Button>
+
+                  {apiKeyCopied && (
+                    <Alert severity="success" sx={{ mt: 2 }}>
+                      API Key copied to clipboard!
+                    </Alert>
+                  )}
+                </Paper>
               </Box>
-            </Paper>
+
+              {/* Profile Section */}
+              <Box sx={{ flex: 1 }}>
+                <Paper sx={{ p: 3, height: "100%" }}>
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    mb={2}
+                  >
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <AccountCircleIcon color="primary" />
+                      <Typography variant="h6" fontWeight="bold">
+                        Profile Information
+                      </Typography>
+                    </Box>
+                    {!editing && (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => {
+                          setEditing(true);
+                          setFormData({
+                            name: user?.name || "",
+                            email: user?.email || "",
+                            phone: user?.phone || "",
+                          });
+                        }}
+                      >
+                        Edit Profile
+                      </Button>
+                    )}
+                  </Box>
+
+                  {error && (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                      {error}
+                    </Alert>
+                  )}
+
+                  {success && (
+                    <Alert severity="success" sx={{ mb: 2 }}>
+                      {success}
+                    </Alert>
+                  )}
+
+                  <Box component="form" onSubmit={handleSubmit}>
+                    <TextField
+                      margin="normal"
+                      fullWidth
+                      label="Name"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      disabled={!editing}
+                      variant={editing ? "outlined" : "filled"}
+                    />
+                    <TextField
+                      margin="normal"
+                      fullWidth
+                      label="Email"
+                      name="email"
+                      value={formData.email}
+                      disabled={true}
+                      variant="filled"
+                      helperText="Email cannot be changed"
+                    />
+                    <TextField
+                      margin="normal"
+                      fullWidth
+                      label="Phone"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      disabled={!editing}
+                      variant={editing ? "outlined" : "filled"}
+                    />
+
+                    {editing && (
+                      <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
+                        <Button
+                          type="submit"
+                          variant="contained"
+                          disabled={loading}
+                          sx={{ flex: 1 }}
+                        >
+                          {loading ? (
+                            <CircularProgress size={24} />
+                          ) : (
+                            "Save Changes"
+                          )}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          onClick={() => {
+                            setEditing(false);
+                            setFormData({
+                              name: user?.name || "",
+                              email: user?.email || "",
+                              phone: user?.phone || "",
+                            });
+                          }}
+                          sx={{ flex: 1 }}
+                        >
+                          Cancel
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
+                </Paper>
+              </Box>
+            </Box>
           </Grid>
 
           {/* Stats Section */}
@@ -614,70 +630,49 @@ const Dashboard = () => {
               Account Statistics
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Paper
-                  sx={{
-                    p: 3,
-                    textAlign: "center",
-                    background:
-                      "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                    color: "white",
-                  }}
-                >
-                  <Typography variant="h4" fontWeight="bold">
-                    {user?.credits || 0}
-                  </Typography>
-                  <Typography variant="body2">Available Credits</Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Paper
-                  sx={{
-                    p: 3,
-                    textAlign: "center",
-                    background:
-                      "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
-                    color: "white",
-                  }}
-                >
-                  <Typography variant="h4" fontWeight="bold">
-                    {userStats.totalModels}
-                  </Typography>
-                  <Typography variant="body2">Models Deployed</Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Paper
-                  sx={{
-                    p: 3,
-                    textAlign: "center",
-                    background:
-                      "linear-gradient(135deg, #3742fa 0%, #2f3542 100%)",
-                    color: "white",
-                  }}
-                >
-                  <Typography variant="h4" fontWeight="bold">
-                    {userStats.totalApiCalls}
-                  </Typography>
-                  <Typography variant="body2">API Calls Made</Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Paper
-                  sx={{
-                    p: 3,
-                    textAlign: "center",
-                    background:
-                      "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-                    color: "white",
-                  }}
-                >
-                  <Typography variant="h4" fontWeight="bold">
-                    {userStats.creditsEarned}
-                  </Typography>
-                  <Typography variant="body2">Credits Earned</Typography>
-                </Paper>
-              </Grid>
+              {[
+                {
+                  value: user?.credits || 0,
+                  label: "Available Credits",
+                  gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                },
+                {
+                  value: userStats.totalModels,
+                  label: "Models Deployed",
+                  gradient: "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
+                },
+                {
+                  value: userStats.totalApiCalls,
+                  label: "API Calls Made",
+                  gradient: "linear-gradient(135deg, #3742fa 0%, #2f3542 100%)",
+                },
+                {
+                  value: userStats.creditsEarned,
+                  label: "Credits Earned",
+                  gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                },
+              ].map((stat, index) => (
+                <Grid item xs={12} sm={6} md={3} key={index}>
+                  <Paper
+                    sx={{
+                      p: 3,
+                      textAlign: "center",
+                      background: stat.gradient,
+                      color: "white",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minHeight: "140px",
+                    }}
+                  >
+                    <Typography variant="h4" fontWeight="bold" sx={{ mb: 1 }}>
+                      {stat.value}
+                    </Typography>
+                    <Typography variant="body2">{stat.label}</Typography>
+                  </Paper>
+                </Grid>
+              ))}
             </Grid>
           </Grid>
         </Grid>

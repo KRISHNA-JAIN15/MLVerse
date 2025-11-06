@@ -30,6 +30,13 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import SearchIcon from "@mui/icons-material/Search";
 import { API_CONFIG } from "../config/api";
 
+// Utility function to truncate text
+const truncateText = (text, maxLength = 100) => {
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + "...";
+};
+
 // Utility function to format input schema into a request body example
 const generateRequestBody = (inputs) => {
   if (!inputs || inputs.length === 0) {
@@ -146,7 +153,9 @@ const MarketplaceModelCard = ({ model }) => {
       </Box>
 
       {/* Metadata */}
-      <Typography variant="body2">{model.description}</Typography>
+      <Typography variant="body2">
+        {truncateText(model.description, 20)}
+      </Typography>
       <Divider sx={{ my: 1 }} />
 
       <Box>

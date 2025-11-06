@@ -327,6 +327,13 @@ import { API_CONFIG } from "../config/api";
 import { useAuth } from "../context/useAuth";
 
 // Utility function to format input schema into a request body example
+
+const truncateText = (text, maxLength = 100) => {
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + "...";
+};
+
 const generateRequestBody = (inputs) => {
   if (!inputs || inputs.length === 0) {
     return '{\n  "data": "Requires raw data upload (no structured inputs defined)"\n}';
@@ -629,7 +636,9 @@ const ModelCard = ({
       </Collapse>
 
       {/* Metadata */}
-      <Typography variant="body2">{model.description}</Typography>
+      <Typography variant="body2">
+        {truncateText(model.description, 20)}
+      </Typography>
       <Divider sx={{ my: 1 }} />
 
       <Box>
